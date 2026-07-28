@@ -1,0 +1,7 @@
+base_config: ./diffsr_celeb_small.yaml
+
+# CC-ResDiff proposed arm: same model/data/schedule/seed as diffsr_celeb_small.yaml,
+# only the auxiliary Global Color-Consistency (GCC) loss is turned on.
+use_color_loss: true
+lambda_color: 0.1
+color_pool_size: 8

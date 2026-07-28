@@ -1,0 +1,11 @@
+base_config: ./celeb_a.yaml
+# compute-constrained variant: 16x16 -> 64x64 (4x), fits a single 4GB GPU / Colab T4
+sr_scale: 4
+hr_crop_size: 178
+hr_size: 64
+eval_batch_size: 16
+test_batch_size: 16
+# CelebA subsample per the CC-ResDiff compute-constrained experimental plan
+max_train_imgs: 3000
+max_valid_imgs: 300
+max_test_imgs: 300

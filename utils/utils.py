@@ -223,8 +223,17 @@ class Measure:
         ssim = self.ssim(imgA, imgB)
         lpips = self.lpips(imgA, imgB)
         lr_psnr = self.psnr(imgA_lr, img_lr)
-        res = {'psnr': psnr, 'ssim': ssim, 'lpips': lpips, 'lr_psnr': lr_psnr}
+        color_error = self.color_error(imgA, imgB)
+        res = {'psnr': psnr, 'ssim': ssim, 'lpips': lpips, 'lr_psnr': lr_psnr, 'color_error': color_error}
         return {k: float(v) for k, v in res.items()}
+
+    def color_error(self, imgA, imgB):
+        """Mean absolute difference of the average per-channel (R, G, B) pixel
+        value between imgA and imgB (both [H, W, C] uint8, range [0, 255]).
+        Directly measures the global color/tone drift CC-ResDiff targets."""
+        mean_a = imgA.reshape(-1, imgA.shape[-1]).mean(axis=0)
+        mean_b = imgB.reshape(-1, imgB.shape[-1]).mean(axis=0)
+        return np.abs(mean_a - mean_b).mean()
 
     def lpips(self, imgA, imgB, model=None):
         device = next(self.model.parameters()).device

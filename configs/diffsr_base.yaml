@@ -29,6 +29,11 @@ clip_grad_norm: 10
 weight_init: false
 fix_rrdb: true
 
+# CC-ResDiff: Global Color-Consistency (GCC) auxiliary loss (Stage 2 only)
+use_color_loss: false
+lambda_color: 0.1
+color_pool_size: 8
+
 # train and eval
 lr: 0.0002
 decay_steps: 100000

@@ -1,6 +1,12 @@
 raw_data_dir: data/raw/CelebA
 binary_data_dir: data/binary/celeb_a_sr
 sr_scale: 8
+hr_crop_size: 178
+hr_size: 160
+# -1 means use the full split; overridden by celeb_a_small.yaml to subsample
+max_train_imgs: -1
+max_valid_imgs: -1
+max_test_imgs: -1
 eval_batch_size: 20
 test_batch_size: 20
 # for randomly plot figures

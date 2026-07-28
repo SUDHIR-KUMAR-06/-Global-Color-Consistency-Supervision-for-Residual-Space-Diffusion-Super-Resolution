@@ -17,15 +17,18 @@ class CelebDataSet(SRDataSet):
                 transforms.RandomRotation(20, resample=Image.BICUBIC),
                 transforms.ColorJitter(brightness=0.4, contrast=0.4, saturation=0.4, hue=0.1),
             ]
+        crop = hparams['hr_crop_size']
+        size = hparams['hr_size']
         self.pre_process_transforms = transforms.Compose(preprocess_transforms + [
-            transforms.CenterCrop((178, 178)),
-            transforms.Resize((160, 160)),
+            transforms.CenterCrop((crop, crop)),
+            transforms.Resize((size, size)),
         ])
-        if self.prefix == 'test':
-            self.len = 5000
-            if hparams['test_save_png']:
-                self.test_ids = hparams['test_ids']
-                self.len = len(self.test_ids)
+        if self.prefix == 'test' and hparams['test_save_png']:
+            # self.len (from the base class) reflects the actual packed test-set
+            # size, which may be smaller than the full CelebA test split when
+            # max_test_imgs subsamples it; keep only in-range test_ids.
+            self.test_ids = [i for i in hparams['test_ids'] if i < self.len]
+            self.len = len(self.test_ids)
 
     def _get_item(self, index):
         if self.indexed_ds is None:

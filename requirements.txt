@@ -16,6 +16,7 @@ opencv-python
 opencv-contrib-python
 einops
 lpips
+pytorch-fid
 natsort
 timm
 openpyxl

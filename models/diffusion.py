@@ -158,8 +158,10 @@ class GaussianDiffusion(nn.Module):
             rrdb_out = img_lr_up
             cond = img_lr
         x = self.img2res(x, img_lr_up)
-        p_losses, x_tp1, noise_pred, x_t, x_t_gt, x_0 = self.p_losses(x, t, cond, img_lr_up, *args, **kwargs)
+        p_losses, x_tp1, noise_pred, x_t, x_t_gt, x_0, x_0_grad = self.p_losses(x, t, cond, img_lr_up, *args, **kwargs)
         ret = {'q': p_losses}
+        if hparams['use_color_loss']:
+            ret['color'] = hparams['lambda_color'] * self.color_consistency_loss(x_0_grad, img_hr, img_lr_up)
         if not hparams['fix_rrdb']:
             if hparams['aux_l1_loss']:
                 ret['aux_l1'] = F.l1_loss(rrdb_out, img_hr)
@@ -189,7 +191,25 @@ class GaussianDiffusion(nn.Module):
             loss = loss + (1 - self.ssim_loss(noise, noise_pred))
         else:
             raise NotImplementedError()
-        return loss, x_tp1_gt, noise_pred, x_t_pred, x_t_gt, x0_pred
+
+        # p_sample() above runs under @torch.no_grad(), so its x0_pred is detached
+        # from the graph. The color-consistency loss needs a differentiable
+        # predicted-x0, so reconstruct it here directly from noise_pred via the
+        # same closed-form DDPM formula (no clipping, matching the CC-ResDiff spec).
+        x0_pred_grad = self.predict_start_from_noise(x_tp1_gt, t, noise_pred)
+
+        return loss, x_tp1_gt, noise_pred, x_t_pred, x_t_gt, x0_pred, x0_pred_grad
+
+    def color_consistency_loss(self, r_pred_0, img_hr, img_lr_up):
+        """Global Color-Consistency (GCC) loss (CC-ResDiff): MSE between
+        low-frequency/pooled color statistics of the reconstructed HR prediction
+        and the ground-truth HR image, isolating global tone/color drift from the
+        high-frequency detail the noise-prediction loss already supervises."""
+        x_hr_pred = self.res2img(r_pred_0, img_lr_up)
+        size = hparams['color_pool_size']
+        pred_low = F.adaptive_avg_pool2d(x_hr_pred, output_size=(size, size))
+        gt_low = F.adaptive_avg_pool2d(img_hr, output_size=(size, size))
+        return F.mse_loss(pred_low, gt_low)
 
     def q_sample(self, x_start, t, noise=None):
         noise = default(noise, lambda: torch.randn_like(x_start))

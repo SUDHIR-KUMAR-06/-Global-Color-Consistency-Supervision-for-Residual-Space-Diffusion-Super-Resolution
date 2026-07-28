@@ -1,5 +1,6 @@
 import importlib
 import os
+import random
 import subprocess
 
 import torch
@@ -16,9 +17,11 @@ class Trainer:
         self.logger = self.build_tensorboard(save_dir=hparams['work_dir'], name='tb_logs')
         self.measure = Measure()
         self.dataset_cls = None
-        self.metric_keys = ['psnr', 'ssim', 'lpips', 'lr_psnr']
+        self.metric_keys = ['psnr', 'ssim', 'lpips', 'lr_psnr', 'color_error']
         self.work_dir = hparams['work_dir']
         self.first_val = True
+        self.amp = hparams['amp']
+        self.amp_scaler = torch.cuda.amp.GradScaler(enabled=self.amp)
 
     def build_tensorboard(self, save_dir, name, **kwargs):
         log_dir = os.path.join(save_dir, name)
@@ -73,11 +76,12 @@ class Trainer:
                     save_checkpoint(model, optimizer, self.work_dir, training_step, hparams['num_ckpt_keep'])
                 model.train()
                 batch = move_to_cuda(batch)
-                losses, total_loss = self.training_step(batch)
                 optimizer.zero_grad()
-
-                total_loss.backward()
-                optimizer.step()
+                with torch.cuda.amp.autocast(enabled=self.amp):
+                    losses, total_loss = self.training_step(batch)
+                self.amp_scaler.scale(total_loss).backward()
+                self.amp_scaler.step(optimizer)
+                self.amp_scaler.update()
                 training_step += 1
                 scheduler.step(training_step)
                 self.global_step = training_step
@@ -241,6 +245,11 @@ class Trainer:
 
 if __name__ == '__main__':
     set_hparams()
+
+    random.seed(hparams['seed'])
+    np.random.seed(hparams['seed'])
+    torch.manual_seed(hparams['seed'])
+    torch.cuda.manual_seed_all(hparams['seed'])
 
     pkg = ".".join(hparams["trainer_cls"].split(".")[:-1])
     cls_name = hparams["trainer_cls"].split(".")[-1]

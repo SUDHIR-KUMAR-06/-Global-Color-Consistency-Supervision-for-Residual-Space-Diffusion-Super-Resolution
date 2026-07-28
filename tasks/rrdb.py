@@ -39,6 +39,7 @@ class RRDBTask(Trainer):
             ret['ssim'] += s['ssim']
             ret['lpips'] += s['lpips']
             ret['lr_psnr'] += s['lr_psnr']
+            ret['color_error'] += s['color_error']
             ret['n_samples'] += 1
         return img_sr, img_sr, ret
 

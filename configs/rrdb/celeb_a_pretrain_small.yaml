@@ -1,0 +1,16 @@
+base_config:
+  - ../sr_base.yaml
+  - ../celeb_a_small.yaml
+trainer_cls: tasks.rrdb.RRDBCelebTask
+# model - reduced to fit a 4GB GPU / Colab T4 at 16x16 -> 64x64 (4x)
+hidden_size: 16
+num_block: 4
+lr: 0.0002
+
+# train and eval
+max_updates: 20000
+batch_size: 32
+eval_batch_size: 16
+valid_steps: 3
+val_check_interval: 1000
+num_ckpt_keep: 3
