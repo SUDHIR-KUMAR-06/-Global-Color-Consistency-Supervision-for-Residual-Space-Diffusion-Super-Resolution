@@ -80,9 +80,28 @@ if __name__ == '__main__':
     binary_data_dir = hparams['binary_data_dir']
     os.makedirs(binary_data_dir, exist_ok=True)
     train_img_list = []
-    train_img_list += sorted(glob.glob('data/raw/Flickr2K/Flickr2K_HR/*.png'))
-    train_img_list += sorted(glob.glob('data/raw/DIV2K/DIV2K_train_HR/*.png'))
-    test_img_list = sorted(glob.glob('data/raw/DIV2K/DIV2K_valid_HR/*.png'))
+    for pattern in hparams['df2k_train_globs']:
+        train_img_list += sorted(glob.glob(pattern))
+    assert train_img_list, \
+        f'no training images matched {hparams["df2k_train_globs"]} (set df2k_train_globs)'
+
+    test_img_list = []
+    for pattern in hparams['df2k_test_globs']:
+        test_img_list += sorted(glob.glob(pattern))
+    if not test_img_list:
+        # DIV2K's official validation set is distributed separately; when only the
+        # train split is available, hold out a deterministic tail of it so train
+        # and test never overlap.
+        n_holdout = hparams['df2k_holdout_test']
+        assert len(train_img_list) > n_holdout, \
+            f'need more than {n_holdout} training images to hold out a test set'
+        train_img_list, test_img_list = train_img_list[:-n_holdout], train_img_list[-n_holdout:]
+        print(f'| no test globs matched; held out the last {n_holdout} training images as test')
+
+    n_train = hparams['df2k_max_train_imgs']
+    if 0 <= n_train < len(train_img_list):
+        train_img_list = train_img_list[:n_train]
+    print(f'| df2k: {len(train_img_list)} train images, {len(test_img_list)} test images')
 
     crop_size = hparams['crop_size']
     patch_size = hparams['patch_size']

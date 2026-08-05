@@ -1,4 +1,13 @@
 binary_data_dir: data/binary/df2k4x
+# Point these at your copy. Flickr2K is optional (a non-matching glob is simply
+# skipped). If no test glob matches, the tail of the train list is held out.
+df2k_train_globs:
+  - data/raw/DIV2K_train_HR/*.png
+  - data/raw/Flickr2K/Flickr2K_HR/*.png
+df2k_test_globs:
+  - data/raw/DIV2K_valid_HR/*.png
+df2k_holdout_test: 20
+df2k_max_train_imgs: -1  # -1 = use all
 patch_size: 160
 crop_size: 320
 thresh_size: 160

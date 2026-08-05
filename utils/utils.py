@@ -120,7 +120,43 @@ def get_all_ckpts(work_dir, steps=None):
                   key=lambda x: -int(re.findall('.*steps\_(\d+)\.ckpt', x)[0]))
 
 
-def load_checkpoint(model, optimizer, work_dir):
+def get_best_ckpt_path(work_dir):
+    # deliberately not matching model_ckpt_steps_*.ckpt so get_all_ckpts()'s
+    # step-number regex and its pruning never see this file
+    return f'{work_dir}/model_ckpt_best.ckpt'
+
+
+def save_best_checkpoint(model, global_step, work_dir, monitor_key, monitor_value):
+    """Persist the best-so-far weights outside the rotating step checkpoints.
+
+    num_ckpt_keep prunes by recency, so with early-stopping patience > num_ckpt_keep
+    the best checkpoint would otherwise be deleted before training stops.
+    """
+    ckpt_path = get_best_ckpt_path(work_dir)
+    torch.save({'global_step': global_step,
+                'state_dict': {'model': model.state_dict()},
+                'monitor_key': monitor_key,
+                'monitor_value': monitor_value},
+               ckpt_path, _use_new_zipfile_serialization=False)
+    print(f'| saved best checkpoint ({monitor_key}={monitor_value:.6f} '
+          f'@ step {global_step}) to {ckpt_path}')
+
+
+def load_checkpoint(model, optimizer, work_dir, prefer_best=False):
+    if prefer_best:
+        best_path = get_best_ckpt_path(work_dir)
+        if os.path.exists(best_path):
+            checkpoint = torch.load(best_path, map_location='cpu')
+            model.load_state_dict(checkpoint['state_dict']['model'])
+            model.cuda()
+            training_step = checkpoint['global_step']
+            print(f"| loaded BEST checkpoint from '{best_path}' "
+                  f"({checkpoint.get('monitor_key')}={checkpoint.get('monitor_value')} "
+                  f"@ step {training_step})")
+            del checkpoint
+            torch.cuda.empty_cache()
+            return training_step
+        print(f'| no best checkpoint at {best_path}, falling back to latest')
     checkpoint, _ = get_last_checkpoint(work_dir)
     if checkpoint is not None:
         model.load_state_dict(checkpoint['state_dict']['model'])

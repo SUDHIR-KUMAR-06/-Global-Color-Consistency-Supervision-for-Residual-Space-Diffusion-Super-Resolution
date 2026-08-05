@@ -2,6 +2,7 @@ import importlib
 import os
 import random
 import subprocess
+import sys
 
 import torch
 from PIL import Image
@@ -9,7 +10,7 @@ from tqdm import tqdm
 from torch.utils.tensorboard import SummaryWriter
 from utils.hparams import hparams, set_hparams
 import numpy as np
-from utils.utils import plot_img, move_to_cuda, load_checkpoint, save_checkpoint, tensors_to_scalars, load_ckpt, Measure
+from utils.utils import plot_img, move_to_cuda, load_checkpoint, save_checkpoint, save_best_checkpoint, tensors_to_scalars, load_ckpt, Measure
 
 
 class Trainer:
@@ -44,7 +45,7 @@ class Trainer:
             return value < self.es_best - self.es_min_delta
         return value > self.es_best + self.es_min_delta
 
-    def check_early_stop(self, metrics, training_step):
+    def check_early_stop(self, metrics, training_step, model=None):
         """Update early-stopping state from a validation result.
 
         Returns True when training should stop. A non-finite monitored value is
@@ -67,6 +68,8 @@ class Trainer:
             self.es_best_step = training_step
             self.es_num_bad_evals = 0
             print(f'| early stopping: new best {self.es_key}={value:.6f} @ step {training_step}')
+            if model is not None:
+                save_best_checkpoint(model, training_step, self.work_dir, self.es_key, value)
         else:
             self.es_num_bad_evals += 1
             print(f'| early stopping: no improvement in {self.es_key} '
@@ -87,9 +90,14 @@ class Trainer:
 
     def build_train_dataloader(self):
         dataset = self.dataset_cls('train')
+        num_workers = hparams['num_workers']
         return torch.utils.data.DataLoader(
             dataset, batch_size=hparams['batch_size'], shuffle=True,
-            pin_memory=False, num_workers=hparams['num_workers'])
+            pin_memory=False, num_workers=num_workers,
+            # Windows spawns (rather than forks) workers, so each one re-imports
+            # the world -- including tensorboard's TensorFlow probe. Without this
+            # they respawn every epoch and dominate the step time on small datasets.
+            persistent_workers=num_workers > 0)
 
     def build_val_dataloader(self):
         return torch.utils.data.DataLoader(
@@ -122,9 +130,13 @@ class Trainer:
         scheduler.step(training_step)
         dataloader = self.build_train_dataloader()
 
-        train_pbar = tqdm(dataloader, initial=training_step, total=float('inf'),
-                          dynamic_ncols=True, unit='step')
         while self.global_step < hparams['max_updates'] and not self.should_stop:
+            # Rebuild each epoch: tqdm sets disable=True in close(), so a bar
+            # reused across epochs renders the first one and then goes silent,
+            # which is indistinguishable from a hang.
+            train_pbar = tqdm(dataloader, initial=training_step,
+                              total=hparams['max_updates'],
+                              dynamic_ncols=True, unit='step')
             for batch in train_pbar:
                 if training_step % hparams['val_check_interval'] == 0:
                     with torch.no_grad():
@@ -133,7 +145,7 @@ class Trainer:
                     save_checkpoint(model, optimizer, self.work_dir, training_step, hparams['num_ckpt_keep'])
                     # sanity val runs on a partial set, so don't judge it
                     if metrics is not None and training_step > 0:
-                        self.should_stop = self.check_early_stop(metrics, training_step)
+                        self.should_stop = self.check_early_stop(metrics, training_step, model)
                         if self.should_stop:
                             break
                 model.train()
@@ -245,7 +257,13 @@ class Trainer:
     def test(self):
         model = self.build_model()
         optimizer = self.build_optimizer(model)
-        load_checkpoint(model, optimizer, hparams['work_dir'])
+        # With early stopping the final checkpoint is by definition the one that
+        # failed to improve, so evaluate the best one instead.
+        # keep the loaded step so results dirs are named after the evaluated
+        # checkpoint instead of always 'results_0_'
+        self.global_step = load_checkpoint(
+            model, optimizer, hparams['work_dir'],
+            prefer_best=hparams['test_use_best_ckpt'])
         optimizer = None
 
         self.results = {k: 0 for k in self.metric_keys}
@@ -365,6 +383,12 @@ class Trainer:
 
 
 if __name__ == '__main__':
+    # Redirected stdout is block-buffered, so progress prints can sit unseen for
+    # many minutes while a long run looks stalled.
+    try:
+        sys.stdout.reconfigure(line_buffering=True)
+    except AttributeError:
+        pass
     set_hparams()
 
     random.seed(hparams['seed'])

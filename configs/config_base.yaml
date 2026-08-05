@@ -44,6 +44,9 @@ early_stop_key: psnr        # any key in metric_keys (psnr/ssim/lpips/color_erro
 early_stop_mode: max        # 'max' for psnr/ssim, 'min' for lpips/color_error
 early_stop_patience: 5      # stop after this many validations with no improvement
 early_stop_min_delta: 0.0   # improvements smaller than this don't count
+# Evaluate the best checkpoint rather than the last. The last one is, by
+# construction, the one that failed to improve.
+test_use_best_ckpt: true
 eval_batch_size: 32
 num_workers: 8
 test_input_dir: ''

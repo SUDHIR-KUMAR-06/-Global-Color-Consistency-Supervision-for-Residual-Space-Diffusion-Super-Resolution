@@ -9,3 +9,8 @@ test_batch_size: 16
 max_train_imgs: 3000
 max_valid_imgs: 300
 max_test_imgs: 300
+# Data loading is the bottleneck, not the GPU: matlab_resize.imresize costs
+# ~7ms/sample, capping a single loader process at ~4.5 steps/s while the GPU
+# idles. Workers are only viable alongside persistent_workers=True (see
+# build_train_dataloader), otherwise Windows respawns them every epoch.
+num_workers: 6
