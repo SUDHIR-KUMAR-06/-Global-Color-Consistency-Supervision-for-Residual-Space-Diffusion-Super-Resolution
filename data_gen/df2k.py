@@ -65,14 +65,22 @@ def build_bin_dataset(paths, binary_data_dir, prefix, patch_size, crop_size, thr
         for i, path in enumerate(paths):
             yield i, path, patch_size, crop_size, thresh_size, sr_scale
 
-    with Pool(processes=10) as pool:
+    # Keeping only the first tile of each test image (upstream behaviour) leaves
+    # too few test samples for a meaningful FID once the split is small, so allow
+    # storing every tile instead.
+    test_all_tiles = hparams['df2k_test_all_tiles']
+    n_items = 0
+    with Pool(processes=hparams['df2k_num_workers']) as pool:
         for ret in tqdm(pool.imap_unordered(worker, list(get_worker_args())), total=len(paths)):
-            if prefix == 'test':
+            if prefix == 'test' and not test_all_tiles:
                 builder.add_item(ret[1][0], id=ret[0])
+                n_items += 1
             else:
                 for r in ret[1]:
                     builder.add_item(r)
+                    n_items += 1
     builder.finalize()
+    print(f'| built {prefix}: {n_items} items from {len(paths)} images')
 
 
 if __name__ == '__main__':

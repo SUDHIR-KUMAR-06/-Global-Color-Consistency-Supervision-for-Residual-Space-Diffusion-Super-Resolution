@@ -1,0 +1,28 @@
+base_config: ./df2k4x.yaml
+# Compute-constrained DIV2K variant, deliberately mirroring celeb_a_small.yaml
+# (4x, 16x16 -> 64x64 patches) so the same model config fits a 4GB GPU and the
+# two datasets are directly comparable.
+binary_data_dir: data/binary/df2k4x_small
+sr_scale: 4
+patch_size: 64      # HR patch actually fed to the model
+crop_size: 256      # stored tile; random 64x64 crops are taken from it at train time
+thresh_size: 64
+
+# Only the DIV2K train split is available locally, so a tail of it is held out.
+df2k_max_train_imgs: 200
+df2k_holdout_test: 60
+# Store every tile of each held-out image, not just the first, so the test set is
+# large enough for FID to mean anything.
+df2k_test_all_tiles: true
+df2k_num_workers: 3  # keep CPU free for a concurrently running training job
+
+# Test/valid items are whole stored tiles (no random crop), so these stay small.
+test_crop_size: [256, 256]
+test_thresh_size: 0
+# Validation/test items are full 256x256 tiles (16x the area of a training
+# patch) and each one is sampled over 100 diffusion steps, so keep the batch
+# small; valid_steps is raised to keep the same number of validation images.
+eval_batch_size: 4
+test_batch_size: 4
+valid_steps: 6
+num_workers: 6

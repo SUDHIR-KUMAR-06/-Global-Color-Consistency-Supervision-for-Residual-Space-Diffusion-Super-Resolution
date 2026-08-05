@@ -8,6 +8,8 @@ df2k_test_globs:
   - data/raw/DIV2K_valid_HR/*.png
 df2k_holdout_test: 20
 df2k_max_train_imgs: -1  # -1 = use all
+df2k_num_workers: 10     # packing pool size; lower it to share CPU with a training run
+df2k_test_all_tiles: false
 patch_size: 160
 crop_size: 320
 thresh_size: 160

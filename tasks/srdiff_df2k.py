@@ -23,7 +23,8 @@ class Df2kDataSet(SRDataSet):
 
         self.data_aug_transforms = transforms.Compose([
             transforms.RandomHorizontalFlip(),
-            transforms.RandomRotation(20, resample=Image.BICUBIC),
+            # torchvision replaced `resample` with `interpolation` (>=0.13 removed it)
+            transforms.RandomRotation(20, interpolation=transforms.InterpolationMode.BICUBIC),
             transforms.ColorJitter(brightness=0.4, contrast=0.4, saturation=0.4, hue=0.1),
         ])
 

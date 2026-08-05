@@ -1,0 +1,29 @@
+base_config:
+  - ./diffsr_base.yaml
+  - ./df2k4x_small.yaml
+trainer_cls: tasks.srdiff_df2k.SRDiffDf2k
+
+# DIV2K baseline arm. Model capacity/schedule identical to the CelebA arm
+# (diffsr_celeb_small.yaml) so results across datasets are comparable.
+hidden_size: 32
+unet_dim_mults: 1|2|2|4
+rrdb_num_feat: 16
+rrdb_num_block: 4
+rrdb_ckpt: 'checkpoints/rrdb_div2k_small'
+
+batch_size: 16
+max_updates: 20000
+decay_steps: 8000
+val_check_interval: 1000
+num_ckpt_keep: 3
+amp: true
+
+# Monitors PSNR, not color_error, so the stopping criterion cannot favour the
+# CC-ResDiff arm. Both arms use identical settings.
+early_stop: true
+early_stop_key: psnr
+early_stop_mode: max
+early_stop_patience: 5
+early_stop_min_delta: 0.01
+
+use_color_loss: false

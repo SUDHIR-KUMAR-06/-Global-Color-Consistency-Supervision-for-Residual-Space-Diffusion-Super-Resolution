@@ -1,0 +1,7 @@
+base_config: ./diffsr_df2k4x_small.yaml
+
+# DIV2K proposed arm: identical to diffsr_df2k4x_small.yaml in every respect
+# except the auxiliary Global Color-Consistency loss.
+use_color_loss: true
+lambda_color: 0.1
+color_pool_size: 8

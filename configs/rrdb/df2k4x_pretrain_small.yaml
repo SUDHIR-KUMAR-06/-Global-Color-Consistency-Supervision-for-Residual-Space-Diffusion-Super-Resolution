@@ -1,0 +1,20 @@
+base_config:
+  - ../sr_base.yaml
+  - ../df2k4x_small.yaml
+trainer_cls: tasks.rrdb.RRDBDf2kTask
+# Same reduced capacity as the CelebA arm so the two datasets are comparable.
+hidden_size: 16
+num_block: 4
+lr: 0.0002
+
+max_updates: 20000
+batch_size: 32
+valid_steps: 3
+val_check_interval: 1000
+num_ckpt_keep: 3
+
+early_stop: true
+early_stop_key: psnr
+early_stop_mode: max
+early_stop_patience: 5
+early_stop_min_delta: 0.01
