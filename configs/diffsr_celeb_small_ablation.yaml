@@ -1,0 +1,15 @@
+base_config: ./diffsr_celeb_small_cc.yaml
+
+# Shared settings for the CC-ResDiff ablation sweep: a reduced training budget so
+# the grid is tractable, with everything else identical to the full-length runs.
+max_updates: 5000
+decay_steps: 2500
+val_check_interval: 500
+num_ckpt_keep: 2
+
+# Early stopping is kept on only for its best-checkpoint tracking; the patience
+# is set so it can never fire. Every ablation run must see an identical training
+# budget, otherwise a setting that happened to stop early would be compared at a
+# different number of updates and the sweep would measure that instead.
+early_stop: true
+early_stop_patience: 1000000

@@ -222,10 +222,16 @@ class GaussianDiffusion(nn.Module):
         it, the ~2000x amplification of the x0 reconstruction at large t makes this
         auxiliary term explode and swamp the DDPM objective.
 
-        Note for interpretation: because clamping zeroes the gradient outside the
-        range, the GCC term contributes signal mainly at low-to-mid t, where the
-        predicted x0 is well-conditioned. That is the intended regime -- at large t
-        the x0 estimate is dominated by noise and carries little color information.
+        Note for interpretation: the clamp bounds the loss *value*, but it does not
+        make the term's influence uniform over t. Measured on a trained checkpoint
+        (tasks/analyze_gcc_gradients.py), the ratio of this term's parameter
+        gradient to the DDPM term's is ~0.002% at t=0 but ~236% at t=T-1, averaging
+        ~34% over uniformly sampled t at lambda_color=0.1. At large t nearly all
+        elements saturate (97% at t=T-1), yet the few that do not still carry the
+        ~2000x 1/sqrt(alpha_bar) amplification, so the gradient is dominated by
+        large t. In effect this is a high-t color loss with a heavy-tailed
+        contribution, not a uniformly applied one -- worth stating explicitly
+        rather than describing the term as globally weighted by lambda_color.
         """
         with torch.cuda.amp.autocast(enabled=False):
             r_pred_0 = r_pred_0.float().clamp(-1, 1)
