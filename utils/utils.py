@@ -117,7 +117,7 @@ def get_all_ckpts(work_dir, steps=None):
     else:
         ckpt_path_pattern = f'{work_dir}/model_ckpt_steps_{steps}.ckpt'
     return sorted(glob.glob(ckpt_path_pattern),
-                  key=lambda x: -int(re.findall('.*steps\_(\d+)\.ckpt', x)[0]))
+                  key=lambda x: -int(re.findall(r'.*steps_(\d+)\.ckpt', x)[0]))
 
 
 def get_best_ckpt_path(work_dir):

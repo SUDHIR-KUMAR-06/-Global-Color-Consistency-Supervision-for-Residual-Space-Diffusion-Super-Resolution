@@ -10,7 +10,7 @@ from tqdm import tqdm
 from torch.utils.tensorboard import SummaryWriter
 from utils.hparams import hparams, set_hparams
 import numpy as np
-from utils.utils import plot_img, move_to_cuda, load_checkpoint, save_checkpoint, save_best_checkpoint, tensors_to_scalars, load_ckpt, Measure
+from utils.utils import plot_img, move_to_cuda, load_checkpoint, save_checkpoint, save_best_checkpoint, get_best_ckpt_path, tensors_to_scalars, load_ckpt, Measure
 
 
 class Trainer:
@@ -38,6 +38,33 @@ class Trainer:
 
         # --- numerical-stability state ---
         self.skipped_steps = 0
+
+    def restore_early_stop_state(self):
+        """Recover the best-so-far score when resuming an interrupted run.
+
+        Without this a resumed run starts from an empty best, so the first
+        validation always looks like an improvement and overwrites a genuinely
+        better checkpoint. The patience counter is deliberately not restored --
+        resetting it grants extra evaluations rather than stopping early.
+        """
+        if not self.es_enabled:
+            return
+        best_path = get_best_ckpt_path(self.work_dir)
+        if not os.path.exists(best_path):
+            return
+        try:
+            ckpt = torch.load(best_path, map_location='cpu')
+        except Exception as e:
+            print(f'| could not read {best_path} ({e}); starting early stopping fresh')
+            return
+        if ckpt.get('monitor_key') != self.es_key:
+            print(f"| best checkpoint tracks {ckpt.get('monitor_key')!r} but early stopping "
+                  f"now monitors {self.es_key!r}; starting early stopping fresh")
+            return
+        self.es_best = float(ckpt['monitor_value'])
+        self.es_best_step = int(ckpt['global_step'])
+        print(f'| resumed early stopping: best {self.es_key}={self.es_best:.6f} '
+              f'@ step {self.es_best_step}')
 
     def is_improvement(self, value):
         """True if `value` beats the best-so-far by more than min_delta."""
@@ -126,6 +153,7 @@ class Trainer:
         model = self.build_model()
         optimizer = self.build_optimizer(model)
         self.global_step = training_step = load_checkpoint(model, optimizer, hparams['work_dir'])
+        self.restore_early_stop_state()
         self.scheduler = scheduler = self.build_scheduler(optimizer)
         scheduler.step(training_step)
         dataloader = self.build_train_dataloader()
