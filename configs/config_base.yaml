@@ -35,6 +35,15 @@ max_epochs: 1000
 max_updates: 600000
 amp: false
 batch_size: 32
+
+#########
+# early stopping
+#########
+early_stop: false
+early_stop_key: psnr        # any key in metric_keys (psnr/ssim/lpips/color_error/...)
+early_stop_mode: max        # 'max' for psnr/ssim, 'min' for lpips/color_error
+early_stop_patience: 5      # stop after this many validations with no improvement
+early_stop_min_delta: 0.0   # improvements smaller than this don't count
 eval_batch_size: 32
 num_workers: 8
 test_input_dir: ''

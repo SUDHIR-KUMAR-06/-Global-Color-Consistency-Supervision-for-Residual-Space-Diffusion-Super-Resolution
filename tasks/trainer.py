@@ -23,6 +23,63 @@ class Trainer:
         self.amp = hparams['amp']
         self.amp_scaler = torch.cuda.amp.GradScaler(enabled=self.amp)
 
+        # --- early stopping state ---
+        self.es_enabled = hparams['early_stop']
+        self.es_key = hparams['early_stop_key']
+        self.es_mode = hparams['early_stop_mode']
+        assert self.es_mode in ('min', 'max'), f'early_stop_mode must be min|max, got {self.es_mode}'
+        self.es_patience = hparams['early_stop_patience']
+        self.es_min_delta = hparams['early_stop_min_delta']
+        self.es_best = float('inf') if self.es_mode == 'min' else float('-inf')
+        self.es_best_step = 0
+        self.es_num_bad_evals = 0
+        self.should_stop = False
+
+        # --- numerical-stability state ---
+        self.skipped_steps = 0
+
+    def is_improvement(self, value):
+        """True if `value` beats the best-so-far by more than min_delta."""
+        if self.es_mode == 'min':
+            return value < self.es_best - self.es_min_delta
+        return value > self.es_best + self.es_min_delta
+
+    def check_early_stop(self, metrics, training_step):
+        """Update early-stopping state from a validation result.
+
+        Returns True when training should stop. A non-finite monitored value is
+        treated as a failed evaluation (never as an improvement) so a diverged
+        run cannot latch itself in as 'best'.
+        """
+        if not self.es_enabled:
+            return False
+        if self.es_key not in metrics:
+            print(f'| early stopping: key {self.es_key!r} not in val metrics '
+                  f'{sorted(metrics)}; skipping check')
+            return False
+        value = float(metrics[self.es_key])
+        if not np.isfinite(value):
+            self.es_num_bad_evals += 1
+            print(f'| early stopping: non-finite {self.es_key}={value}, '
+                  f'{self.es_num_bad_evals}/{self.es_patience} bad evals')
+        elif self.is_improvement(value):
+            self.es_best = value
+            self.es_best_step = training_step
+            self.es_num_bad_evals = 0
+            print(f'| early stopping: new best {self.es_key}={value:.6f} @ step {training_step}')
+        else:
+            self.es_num_bad_evals += 1
+            print(f'| early stopping: no improvement in {self.es_key} '
+                  f'({value:.6f} vs best {self.es_best:.6f} @ step {self.es_best_step}), '
+                  f'{self.es_num_bad_evals}/{self.es_patience}')
+        self.log_metrics({f'val/{self.es_key}_best': self.es_best}, training_step)
+        if self.es_num_bad_evals >= self.es_patience:
+            print(f'| EARLY STOP at step {training_step}: no improvement in {self.es_key} '
+                  f'for {self.es_patience} consecutive validations. '
+                  f'Best {self.es_key}={self.es_best:.6f} @ step {self.es_best_step}.')
+            return True
+        return False
+
     def build_tensorboard(self, save_dir, name, **kwargs):
         log_dir = os.path.join(save_dir, name)
         os.makedirs(log_dir, exist_ok=True)
@@ -67,31 +124,91 @@ class Trainer:
 
         train_pbar = tqdm(dataloader, initial=training_step, total=float('inf'),
                           dynamic_ncols=True, unit='step')
-        while self.global_step < hparams['max_updates']:
+        while self.global_step < hparams['max_updates'] and not self.should_stop:
             for batch in train_pbar:
                 if training_step % hparams['val_check_interval'] == 0:
                     with torch.no_grad():
                         model.eval()
-                        self.validate(training_step)
+                        metrics = self.validate(training_step)
                     save_checkpoint(model, optimizer, self.work_dir, training_step, hparams['num_ckpt_keep'])
+                    # sanity val runs on a partial set, so don't judge it
+                    if metrics is not None and training_step > 0:
+                        self.should_stop = self.check_early_stop(metrics, training_step)
+                        if self.should_stop:
+                            break
                 model.train()
                 batch = move_to_cuda(batch)
                 optimizer.zero_grad()
                 with torch.cuda.amp.autocast(enabled=self.amp):
                     losses, total_loss = self.training_step(batch)
+
+                # Guard 1: a non-finite loss would poison every weight via
+                # backward(), so drop the step before it can.
+                if not torch.isfinite(total_loss):
+                    self.skipped_steps += 1
+                    print(f'| WARNING step {training_step}: non-finite loss '
+                          f'({total_loss.item()}), skipping step '
+                          f'(total skipped: {self.skipped_steps})')
+                    self.log_metrics({'tr/skipped_steps': self.skipped_steps}, training_step)
+                    optimizer.zero_grad(set_to_none=True)
+                    training_step += 1
+                    self.global_step = training_step
+                    continue
+
                 self.amp_scaler.scale(total_loss).backward()
+
+                # Gradient clipping must see true (unscaled) gradients, so unscale
+                # first; GradScaler.step then knows not to unscale twice.
+                grad_norm = None
+                if hparams['clip_grad_norm'] > 0:
+                    self.amp_scaler.unscale_(optimizer)
+                    grad_norm = torch.nn.utils.clip_grad_norm_(
+                        [p for g in optimizer.param_groups for p in g['params']],
+                        hparams['clip_grad_norm'])
+
+                    # Guard 2: clip_grad_norm_ returns non-finite when any grad
+                    # overflowed. Under AMP the scaler already skips such steps,
+                    # but without AMP nothing else would.
+                    if not torch.isfinite(grad_norm):
+                        self.skipped_steps += 1
+                        print(f'| WARNING step {training_step}: non-finite grad norm '
+                              f'({grad_norm.item()}), skipping step '
+                              f'(total skipped: {self.skipped_steps})')
+                        self.log_metrics({'tr/skipped_steps': self.skipped_steps}, training_step)
+                        optimizer.zero_grad(set_to_none=True)
+                        self.amp_scaler.update()
+                        training_step += 1
+                        self.global_step = training_step
+                        continue
+
                 self.amp_scaler.step(optimizer)
                 self.amp_scaler.update()
                 training_step += 1
                 scheduler.step(training_step)
                 self.global_step = training_step
                 if training_step % 100 == 0:
-                    self.log_metrics({f'tr/{k}': v for k, v in losses.items()}, training_step)
+                    log = {f'tr/{k}': v for k, v in losses.items()}
+                    if grad_norm is not None:
+                        log['tr/grad_norm'] = grad_norm
+                    if self.amp:
+                        # a collapsing scale means persistent overflow upstream
+                        log['tr/amp_scale'] = self.amp_scaler.get_scale()
+                    self.log_metrics(log, training_step)
                 train_pbar.set_postfix(**tensors_to_scalars(losses))
+                if self.global_step >= hparams['max_updates']:
+                    break
+
+        if self.skipped_steps:
+            print(f'| training finished with {self.skipped_steps} skipped '
+                  f'(non-finite) steps out of {training_step}')
 
     def validate(self, training_step):
         val_dataloader = self.build_val_dataloader()
         pbar = tqdm(enumerate(val_dataloader), total=len(val_dataloader))
+        # sample_and_test returns per-batch *sums* plus an 'n_samples' count, so
+        # accumulate across the whole val set and divide once at the end.
+        totals = {k: 0. for k in self.metric_keys}
+        n_total = 0
         for batch_idx, batch in pbar:
             if self.first_val and batch_idx > hparams['num_sanity_val_steps']:  # 每次运行的第一次validation只跑一小部分数据，来验证代码能否跑通
                 break
@@ -108,9 +225,12 @@ class Trainer:
                     self.logger.add_image(f'HR_{batch_idx}', plot_img(img_hr[0]), self.global_step)
                     self.logger.add_image(f'LR_{batch_idx}', plot_img(img_lr[0]), self.global_step)
                     self.logger.add_image(f'BL_{batch_idx}', plot_img(img_lr_up[0]), self.global_step)
-            metrics = {}
-            metrics.update({k: np.mean(ret[k]) for k in self.metric_keys})
-            pbar.set_postfix(**tensors_to_scalars(metrics))
+            for k in self.metric_keys:
+                totals[k] += ret[k]
+            n_total += ret['n_samples']
+            pbar.set_postfix(**tensors_to_scalars(
+                {k: v / max(n_total, 1) for k, v in totals.items()}))
+        metrics = {k: v / max(n_total, 1) for k, v in totals.items()}
         if hparams['infer']:
             print('Val results:', metrics)
         else:
@@ -120,6 +240,7 @@ class Trainer:
             else:
                 print('Sanity val results:', metrics)
         self.first_val = False
+        return metrics
 
     def test(self):
         model = self.build_model()

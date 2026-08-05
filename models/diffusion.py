@@ -195,8 +195,17 @@ class GaussianDiffusion(nn.Module):
         # p_sample() above runs under @torch.no_grad(), so its x0_pred is detached
         # from the graph. The color-consistency loss needs a differentiable
         # predicted-x0, so reconstruct it here directly from noise_pred via the
-        # same closed-form DDPM formula (no clipping, matching the CC-ResDiff spec).
-        x0_pred_grad = self.predict_start_from_noise(x_tp1_gt, t, noise_pred)
+        # same closed-form DDPM formula.
+        #
+        # Numerically this reconstruction divides by sqrt(alpha_bar_t), which for
+        # the cosine schedule reaches ~2e-7 at t=T-1 -- an amplification of ~2000x
+        # on the residual. Computed in fp16 under AMP that can overflow outright,
+        # and even in fp32 it makes the auxiliary loss dwarf the DDPM term. Force
+        # fp32 here so the division is well-conditioned; magnitude is then bounded
+        # in color_consistency_loss().
+        with torch.cuda.amp.autocast(enabled=False):
+            x0_pred_grad = self.predict_start_from_noise(
+                x_tp1_gt.float(), t, noise_pred.float())
 
         return loss, x_tp1_gt, noise_pred, x_t_pred, x_t_gt, x0_pred, x0_pred_grad
 
@@ -204,12 +213,28 @@ class GaussianDiffusion(nn.Module):
         """Global Color-Consistency (GCC) loss (CC-ResDiff): MSE between
         low-frequency/pooled color statistics of the reconstructed HR prediction
         and the ground-truth HR image, isolating global tone/color drift from the
-        high-frequency detail the noise-prediction loss already supervises."""
-        x_hr_pred = self.res2img(r_pred_0, img_lr_up)
-        size = hparams['color_pool_size']
-        pred_low = F.adaptive_avg_pool2d(x_hr_pred, output_size=(size, size))
-        gt_low = F.adaptive_avg_pool2d(img_hr, output_size=(size, size))
-        return F.mse_loss(pred_low, gt_low)
+        high-frequency detail the noise-prediction loss already supervises.
+
+        The predicted residual is clamped to [-1, 1] first. This is not merely a
+        numerical guard: img2res() constructs the ground-truth residual in exactly
+        that range, and p_mean_variance() applies the same clamp when sampling, so
+        an out-of-range prediction is out-of-distribution by construction. Without
+        it, the ~2000x amplification of the x0 reconstruction at large t makes this
+        auxiliary term explode and swamp the DDPM objective.
+
+        Note for interpretation: because clamping zeroes the gradient outside the
+        range, the GCC term contributes signal mainly at low-to-mid t, where the
+        predicted x0 is well-conditioned. That is the intended regime -- at large t
+        the x0 estimate is dominated by noise and carries little color information.
+        """
+        with torch.cuda.amp.autocast(enabled=False):
+            r_pred_0 = r_pred_0.float().clamp(-1, 1)
+            # already clamped above, so don't let res2img clamp again
+            x_hr_pred = self.res2img(r_pred_0, img_lr_up.float(), clip_input=False)
+            size = hparams['color_pool_size']
+            pred_low = F.adaptive_avg_pool2d(x_hr_pred, output_size=(size, size))
+            gt_low = F.adaptive_avg_pool2d(img_hr.float(), output_size=(size, size))
+            return F.mse_loss(pred_low, gt_low)
 
     def q_sample(self, x_start, t, noise=None):
         noise = default(noise, lambda: torch.randn_like(x_start))

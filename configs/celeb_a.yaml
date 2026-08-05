@@ -1,5 +1,10 @@
-raw_data_dir: data/raw/CelebA
+raw_data_dir: data/raw/celebA
 binary_data_dir: data/binary/celeb_a_sr
+# Layout varies by CelebA distribution; point these at your copy.
+# Kaggle-style (this repo's default) vs. original: Img/img_align_celeba +
+# Eval/list_eval_partition.txt. Both partition formats are auto-detected.
+celeba_img_dir: data/raw/celebA/img_align_celeba/img_align_celeba
+celeba_partition_file: data/raw/celebA/list_eval_partition.csv
 sr_scale: 8
 hr_crop_size: 178
 hr_size: 160

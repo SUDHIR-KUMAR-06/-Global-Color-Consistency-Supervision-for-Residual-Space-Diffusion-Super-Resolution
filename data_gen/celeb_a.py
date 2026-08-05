@@ -18,14 +18,32 @@ def subsample(img_list, max_imgs, seed):
     return rng.sample(img_list, max_imgs)
 
 
+def read_partition(path):
+    """Parse a CelebA eval-partition listing into (name, split) pairs.
+
+    Supports both distributions in the wild: the original space-separated
+    `list_eval_partition.txt` and the Kaggle CSV `list_eval_partition.csv`
+    (comma-separated, with an `image_id,partition` header row).
+    """
+    is_csv = os.path.splitext(path)[1].lower() == '.csv'
+    with open(path, mode='r') as f:
+        for i, line in enumerate(f):
+            fields = line.strip().split(',' if is_csv else None)
+            if len(fields) < 2:
+                continue
+            if is_csv and i == 0 and not fields[1].strip().isdigit():
+                continue  # header row
+            yield fields[0].strip(), fields[1].strip()
+
+
 def build_bin_dataset(imgs, prefix):
     binary_data_dir = hparams['binary_data_dir']
-    raw_data_dir = hparams['raw_data_dir']
+    img_dir = hparams['celeba_img_dir']
     os.makedirs(binary_data_dir, exist_ok=True)
     builder = IndexedDatasetBuilder(f'{binary_data_dir}/{prefix}')
     for img in tqdm(imgs):
         try:
-            full_path = f'{raw_data_dir}/Img/img_align_celeba/{img}'
+            full_path = f'{img_dir}/{img}'
             image = Image.open(full_path).convert('RGB')
             data = asarray(image)
             builder.add_item({'item_name': img, 'path': full_path, 'img': data})
@@ -39,25 +57,29 @@ def build_bin_dataset(imgs, prefix):
 
 if __name__ == '__main__':
     set_hparams()
-    raw_data_dir = hparams['raw_data_dir']
     binary_data_dir = hparams['binary_data_dir']
-    eval_partition_path = f'{raw_data_dir}/Eval/list_eval_partition.txt'
+    eval_partition_path = hparams['celeba_partition_file']
+    assert os.path.exists(eval_partition_path), \
+        f'partition file not found: {eval_partition_path} (set celeba_partition_file)'
+    assert os.path.isdir(hparams['celeba_img_dir']), \
+        f'image dir not found: {hparams["celeba_img_dir"]} (set celeba_img_dir)'
 
     train_img_list = []
     val_img_list = []
     test_img_list = []
-    with open(eval_partition_path, mode='r') as f:
-        while True:
-            line = f.readline().split()
-            if not line: break
-            if line[1] == '0':
-                train_img_list.append(line[0])
-            elif line[1] == '1':
-                val_img_list.append(line[0])
-            else:
-                test_img_list.append(line[0])
+    for name, split in read_partition(eval_partition_path):
+        if split == '0':
+            train_img_list.append(name)
+        elif split == '1':
+            val_img_list.append(name)
+        else:
+            test_img_list.append(name)
+    print(f'| partition: {len(train_img_list)} train, '
+          f'{len(val_img_list)} valid, {len(test_img_list)} test')
 
-    seed = hparams['seed']
+    # config_base.yaml's 'seed' default isn't in scope when this script is invoked
+    # with a bare celeb_a*.yaml config (no diffsr_base.yaml in the chain).
+    seed = hparams.get('seed', 1234)
     train_img_list = subsample(train_img_list, hparams['max_train_imgs'], seed)
     val_img_list = subsample(val_img_list, hparams['max_valid_imgs'], seed)
     test_img_list = subsample(test_img_list, hparams['max_test_imgs'], seed)

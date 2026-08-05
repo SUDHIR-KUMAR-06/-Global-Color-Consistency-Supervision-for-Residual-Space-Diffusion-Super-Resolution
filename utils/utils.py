@@ -243,7 +243,8 @@ class Measure:
         return dist01
 
     def ssim(self, imgA, imgB):
-        score, diff = ssim(imgA, imgB, full=True, multichannel=True, data_range=255)
+        # newer scikit-image (>=0.19) replaced `multichannel` with `channel_axis`
+        score, diff = ssim(imgA, imgB, full=True, channel_axis=-1, data_range=255)
         return score
 
     def psnr(self, imgA, imgB):

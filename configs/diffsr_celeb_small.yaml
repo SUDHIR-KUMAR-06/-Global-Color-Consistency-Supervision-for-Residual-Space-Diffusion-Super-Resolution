@@ -18,4 +18,13 @@ val_check_interval: 1000
 num_ckpt_keep: 3
 amp: true
 
+# Early stopping. Deliberately monitors PSNR (a neutral distortion metric) rather
+# than color_error, so the criterion cannot favour the CC-ResDiff arm; both arms
+# use identical settings.
+early_stop: true
+early_stop_key: psnr
+early_stop_mode: max
+early_stop_patience: 5
+early_stop_min_delta: 0.01
+
 use_color_loss: false

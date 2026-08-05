@@ -23,17 +23,18 @@ class CelebDataSet(SRDataSet):
             transforms.CenterCrop((crop, crop)),
             transforms.Resize((size, size)),
         ])
-        if self.prefix == 'test' and hparams['test_save_png']:
-            # self.len (from the base class) reflects the actual packed test-set
-            # size, which may be smaller than the full CelebA test split when
-            # max_test_imgs subsamples it; keep only in-range test_ids.
-            self.test_ids = [i for i in hparams['test_ids'] if i < self.len]
+        # test_ids is a fixed set of indices curated against the *full,
+        # unsubsampled* CelebA test partition (for picking figure examples);
+        # it's meaningless once max_test_imgs subsamples the packed test set,
+        # so only honor it when the test set hasn't been subsampled.
+        if self.prefix == 'test' and hparams['test_save_png'] and hparams['max_test_imgs'] < 0:
+            self.test_ids = hparams['test_ids']
             self.len = len(self.test_ids)
 
     def _get_item(self, index):
         if self.indexed_ds is None:
             self.indexed_ds = IndexedDataset(f'{self.data_dir}/{self.prefix}')
-        if self.prefix == 'test' and hparams['test_save_png']:
+        if self.prefix == 'test' and hparams['test_save_png'] and hparams['max_test_imgs'] < 0:
             return self.indexed_ds[self.test_ids[index]]
         else:
             return self.indexed_ds[index]
