@@ -37,6 +37,14 @@ def worker(args):
             y_l_right = (y + crop_size[1]) // sr_scale
             cropped_img = img[x:x + crop_size[0], y:y + crop_size[1], ...]
             cropped_img_lr = img_lr[x_l_left:x_l_right, y_l_left:y_l_right]
+            # Tiles at the right/bottom edge get clipped short by the slicing
+            # above. Test and valid items are consumed whole, so ragged tiles
+            # cannot be collated into a batch; drop them and keep only complete
+            # ones. (Upstream never hit this because it stored just the first
+            # tile of each test image, which is always full size.)
+            if cropped_img.shape[0] != crop_size[0] or cropped_img.shape[1] != crop_size[1]:
+                y += crop_size[1]
+                continue
             ret.append({
                 'item_name': img_name,
                 'loc': [x // crop_size[0], y // crop_size[1]],
