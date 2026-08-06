@@ -9,7 +9,8 @@ lr: 0.0002
 
 max_updates: 20000
 batch_size: 32
-valid_steps: 3
+# valid_steps is inherited from df2k4x_small.yaml (96 tiles); RRDB validation
+# needs no diffusion sampling, so the larger set is nearly free here.
 val_check_interval: 1000
 num_ckpt_keep: 3
 

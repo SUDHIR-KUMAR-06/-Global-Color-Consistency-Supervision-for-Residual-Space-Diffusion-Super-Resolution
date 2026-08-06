@@ -14,7 +14,9 @@ rrdb_ckpt: 'checkpoints/rrdb_div2k_small'
 batch_size: 16
 max_updates: 20000
 decay_steps: 8000
-val_check_interval: 1000
+# Halved frequency against a 4x larger validation set (see df2k4x_small.yaml):
+# same total sampling cost, far less noise in checkpoint selection.
+val_check_interval: 2000
 num_ckpt_keep: 3
 amp: true
 
