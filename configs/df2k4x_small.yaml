@@ -15,6 +15,10 @@ df2k_holdout_test: 60
 # large enough for FID to mean anything.
 df2k_test_all_tiles: true
 df2k_num_workers: 3  # keep CPU free for a concurrently running training job
+# The packed test split is ~2100 tiles; evaluating all of them runs ~11s per
+# batch of 4, i.e. over 1.5 hours per arm. 512 tiles keeps the run tractable
+# while still giving FID far more samples than the 60 source images would.
+max_test_items: 512
 
 # Test/valid items are whole stored tiles (no random crop), so these stay small.
 test_crop_size: [256, 256]

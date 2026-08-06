@@ -46,7 +46,11 @@ def worker(args):
                 y += crop_size[1]
                 continue
             ret.append({
-                'item_name': img_name,
+                # Tiles must not share a name: test-time PNGs are written as
+                # <item_name>.png, so a shared name makes every tile of an image
+                # overwrite the previous one, collapsing a 2000-tile test set to
+                # ~60 files and computing FID over those instead.
+                'item_name': f'{img_name}_{x // crop_size[0]:02d}_{y // crop_size[1]:02d}',
                 'loc': [x // crop_size[0], y // crop_size[1]],
                 'loc_bdr': [(h + crop_size[0] - 1) // crop_size[0], (w + crop_size[1] - 1) // crop_size[1]],
                 'path': path, 'img': cropped_img,

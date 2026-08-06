@@ -22,6 +22,10 @@ class SRDataSet(Dataset):
         self.indexed_ds = None
         if self.prefix == 'valid':
             self.len = hparams['eval_batch_size'] * hparams['valid_steps']
+        elif self.prefix == 'test' and hparams['max_test_items'] > 0:
+            # Each test item is sampled over the full diffusion chain, so a large
+            # tiled test set costs hours. Cap it to a deterministic prefix.
+            self.len = min(self.len, hparams['max_test_items'])
 
     def _get_item(self, index):
         if self.indexed_ds is None:

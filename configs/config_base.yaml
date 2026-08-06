@@ -51,3 +51,6 @@ eval_batch_size: 32
 num_workers: 8
 test_input_dir: ''
 resume_from_checkpoint: 0
+# Cap the test split (-1 = use all). Diffusion evaluation samples the full chain
+# per item, so a large tiled test set costs hours.
+max_test_items: -1
