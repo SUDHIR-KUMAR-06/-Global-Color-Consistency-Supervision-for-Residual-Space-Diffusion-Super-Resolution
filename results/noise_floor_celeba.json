@@ -1,0 +1,26 @@
+{
+  "description": "Evaluation-time noise floor. The SAME CelebA baseline checkpoint (step 15000) evaluated 4 times with different seeds, to separate real baseline-vs-CC differences from sampling variance. NOTE: this bounds evaluation variance only. Training-seed variance is NOT measured and is larger; do not quote these sigmas as significance across training runs.",
+  "checkpoint": "checkpoints/diffsr_celebA_small_baseline/model_ckpt_best.ckpt",
+  "checkpoint_step": 15000,
+  "eval_seeds": [1234, 1, 2, 3],
+  "runs": [
+    {"seed": 1234, "psnr": 25.0951, "ssim": 0.8144, "lpips": 0.0466, "lr_psnr": 43.6902, "color_error": 0.8234, "fid": 69.3212},
+    {"seed": 1,    "psnr": 25.1035, "ssim": 0.8151, "lpips": 0.0464, "lr_psnr": 43.7021, "color_error": 0.8218, "fid": 69.5853},
+    {"seed": 2,    "psnr": 25.0765, "ssim": 0.8146, "lpips": 0.0455, "lr_psnr": 43.6973, "color_error": 0.8256, "fid": 69.4214},
+    {"seed": 3,    "psnr": 25.0649, "ssim": 0.8141, "lpips": 0.0460, "lr_psnr": 43.7123, "color_error": 0.8206, "fid": 69.2289}
+  ],
+  "summary": {
+    "psnr":        {"mean": 25.0850, "std": 0.0175, "cc_value": 24.9666, "gap": -0.1184, "gap_over_std": 6.8},
+    "ssim":        {"mean": 0.8146,  "std": 0.0004, "cc_value": 0.8123,  "gap": -0.0023, "gap_over_std": 5.4},
+    "lpips":       {"mean": 0.0461,  "std": 0.0005, "cc_value": 0.0459,  "gap": -0.0002, "gap_over_std": 0.5,
+                    "note": "not significant"},
+    "lr_psnr":     {"mean": 43.7005, "std": 0.0093, "cc_value": 44.5091, "gap": 0.8086,  "gap_over_std": 87.2},
+    "color_error": {"mean": 0.8229,  "std": 0.0022, "cc_value": 0.2423,  "gap": -0.5806, "gap_over_std": 268.5},
+    "fid":         {"mean": 69.3892, "std": 0.1525, "cc_value": 73.2250, "gap": 3.8358,  "gap_over_std": 25.1}
+  },
+  "caveats": [
+    "Evaluation is deterministic given a seed; both arms were evaluated under the same seed, so the comparison is paired on sampling noise.",
+    "FID at n=300 is biased upward and is only meaningful as a relative comparison on identical images.",
+    "Single training seed per arm. The color_error effect is far too large to be noise; the PSNR and FID deltas are small enough that training-seed variance could change them."
+  ]
+}
