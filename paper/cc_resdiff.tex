@@ -94,8 +94,9 @@ and LPIPS can improve while color error worsens.
 influence is highly non-uniform across the diffusion trajectory---$0.002\%$ of
 the primary gradient at $t{=}0$ versus $236\%$ at $t{=}T{-}1$. Loss magnitude is
 a misleading proxy here, understating the term's true influence by roughly
-$500\times$. This analysis explains both the observed FID regression and the
-existence of an optimal loss weight.
+$500\times$. Ablating this skew shows it to be the mechanism by which the loss
+works, not an artefact: supervision of global color must act where global
+structure is determined.
 
 \item \textbf{An honest characterisation of scope}, including a negative result:
 on DIV2K, where the baseline's color error is already five times lower, the loss
@@ -195,8 +196,9 @@ consider a reweighted variant
 \qquad w_t = \bar\alpha_t ,
 \end{equation}
 which cancels the amplification and concentrates supervision at small $t$, where
-the clean-image estimate is meaningful. Section~\ref{sec:snr} evaluates whether
-this removes the FID regression.
+the clean-image estimate is meaningful. We introduce this variant not as a
+proposed improvement but as an ablation of the timestep skew itself;
+Section~\ref{sec:snr} reports what removing it does.
 
 \section{Experiments}
 
@@ -366,11 +368,58 @@ against the true HR image; the learned model does not need a test-time reference
 at all. This is the central argument for a learned solution over a corrective
 one.
 
-\subsection{Timestep-Reweighted Variant}
+\subsection{Timestep-Reweighted Variant: A Refuted Hypothesis}
 \label{sec:snr}
 
-\pending{Results for $w_t = \bar\alpha_t$; run in progress. Tests whether
-removing the high-$t$ skew eliminates the FID regression.}
+The gradient analysis suggested a hypothesis: if the GCC term acts predominantly
+at large $t$, and if that is what pulls global tone toward the dataset mean, then
+cancelling the skew with the weighting of Section~\ref{sec:weighting} should
+remove the FID regression while preserving the color benefit. The reweighting is
+effective as an intervention---it takes the ratio of the effective gradient scale
+at $t{=}T{-}1$ versus $t{=}0$ from $2029\times$ down to $0.0005\times$.
+
+The hypothesis is wrong, in an informative way (Table~\ref{tab:snr}). Cancelling
+the skew does not fix FID; it makes FID \emph{worse} ($77.81$ versus $73.23$),
+while simultaneously destroying most of the color benefit ($0.673$ versus
+$0.242$) and eliminating the LR-PSNR gain entirely. The reweighted variant is
+inferior to the unweighted one on every metric we measure.
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{lcccc}
+\toprule
+Variant & ColorErr $\downarrow$ & LR-PSNR $\uparrow$ & PSNR $\uparrow$ & FID $\downarrow$ \\
+\midrule
+Baseline                       & 0.8234 & 43.690 & \best{25.095} & \best{69.32} \\
+CC-ResDiff ($w_t{=}1$)         & \best{0.2423} & \best{44.509} & 24.967 & 73.23 \\
+CC-ResDiff ($w_t{=}\bar\alpha_t$) & 0.6728 & 43.366 & 24.963 & 77.81 \\
+\bottomrule
+\end{tabular}
+\caption{Ablating the timestep skew. Removing the concentration at large $t$
+removes most of the benefit, showing that the skew is the mechanism of action
+rather than an artefact. It also fails to fix FID, refuting our hypothesis about
+the regression's cause.}
+\label{tab:snr}
+\end{table}
+
+Two conclusions follow, and we consider the second more valuable than a
+confirmation would have been.
+
+First, \textbf{the concentration at large $t$ is the mechanism, not a defect}.
+This is coherent in hindsight: in a diffusion model the large-$t$ steps determine
+global, low-frequency structure while small-$t$ steps refine local detail. A loss
+on \emph{global color} should therefore act at large $t$, and an implementation
+that spreads it uniformly over the trajectory supervises color where color is no
+longer being decided. Practitioners adding auxiliary losses on the reconstructed
+$x_0$ should treat the induced timestep weighting as a design parameter to be
+measured and reasoned about, not as an accident to be normalised away.
+
+Second, \textbf{the cause of the FID regression remains unexplained}. Our
+mechanism-based account is falsified by this experiment, and we do not have a
+replacement. Reporting a plausible story we had not tested would have been easy;
+testing it cost one training run and showed it to be wrong. We flag the open
+question rather than leaving an untested explanation in the literature.
 
 \subsection{Ablations}
 
@@ -439,21 +488,26 @@ the remainder still carry the ${\sim}2000\times$ amplification.}
 \label{tab:grad}
 \end{table}
 
-This has two consequences. It explains the ablation's cost structure: at
-$\lambda=0.5$ the auxiliary gradient would reach ${\sim}170\%$ of the primary
-one, so the denoising objective is crowded out and all metrics degrade. And it
-predicts the FID regression: a term acting predominantly at large $t$ pulls global
-tone toward the dataset mean, which suppresses the distributional diversity FID
-rewards while leaving per-image LPIPS largely indifferent. The reweighting of
-Section~\ref{sec:weighting} is the direct test of that prediction: if the skew
-causes the regression, cancelling it should remove the regression.
+This explains the ablation's cost structure: at $\lambda=0.5$ the auxiliary
+gradient would reach ${\sim}170\%$ of the primary one, so the denoising objective
+is crowded out and all metrics degrade.
 
-More generally, this is a property of \emph{any} auxiliary loss defined on the
-reconstructed $x_0$ rather than of ours specifically. Such a term inherits the
+It also suggested an explanation for the FID regression---a term acting
+predominantly at large $t$ pulling global tone toward the dataset
+mean---which we tested directly by cancelling the skew. That explanation turns
+out to be wrong, and the experiment instead shows the skew to be the source of
+the method's benefit; we present it in Section~\ref{sec:snr} rather than here,
+since the result reverses the reading one would naturally take from
+Table~\ref{tab:grad}.
+
+More generally, the phenomenon is a property of \emph{any} auxiliary loss defined
+on the reconstructed $x_0$, not of ours specifically. Such a term inherits the
 $1/\sqrt{\bar\alpha_t}$ factor and is therefore implicitly weighted towards large
-$t$ by orders of magnitude, whether or not its designer intended it. We recommend
-reporting the gradient ratio, not the loss ratio, whenever such a term is
-introduced.
+$t$ by orders of magnitude, whether or not its designer intended it. Since
+Section~\ref{sec:snr} shows this weighting can be responsible for most of a
+term's effect, we recommend measuring and reporting the gradient ratio---not the
+loss ratio, which understates it here by ${\sim}500\times$---whenever such a term
+is introduced.
 
 \subsection{Negative Result: DIV2K}
 
@@ -519,13 +573,23 @@ under-trained regime ResDiff describes is untested.
 
 We implemented the global color feature that ResDiff identified as future work,
 and characterised when it helps. The GCC loss is simple, parameter-free at
-inference, and substantially reduces color drift in the regime where that drift
-occurs. Our gradient analysis shows that an auxiliary loss defined on the
-reconstructed $x_0$ inherits an extreme implicit timestep weighting---a
-methodological point that applies to any such term, not only ours. The negative
-DIV2K result bounds the claim: this is a targeted remedy, not a universal
-improvement. Predicting which configurations will drift, and evaluating the
-timestep-reweighted variant at scale, are the natural next steps.
+inference, and reduces color drift by $63\%$ on average in the regime where that
+drift occurs, on $99.3\%$ of test images, and beyond what any admissible post-hoc
+correction can achieve.
+
+Two results were not what we expected. An auxiliary loss defined on the
+reconstructed $x_0$ inherits an extreme implicit timestep weighting, and ablating
+that weighting showed it to be the source of the method's benefit rather than a
+flaw---supervision of global color must act at large $t$, where global structure
+is decided. And our mechanism-based explanation for the accompanying FID
+regression was falsified by the same experiment, leaving that regression an open
+question.
+
+The negative DIV2K result bounds the claim: this is a targeted remedy for an
+identifiable failure mode, not a universal improvement. Predicting in advance
+which training configurations will drift, and testing whether the benefit grows
+in the more severely under-trained regime ResDiff describes, are the natural next
+steps.
 
 \begin{thebibliography}{9}
 \bibitem{shang2024resdiff}
