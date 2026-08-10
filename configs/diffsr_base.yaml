@@ -33,6 +33,10 @@ fix_rrdb: true
 use_color_loss: false
 lambda_color: 0.1
 color_pool_size: 8
+# Timestep reweighting for the GCC term: none | alpha_bar | snr.
+# 'none' leaves the gradient dominated by large t (see analyze_gcc_gradients.py).
+color_loss_weight_mode: none
+color_loss_snr_max: 100.0
 
 # train and eval
 lr: 0.0002

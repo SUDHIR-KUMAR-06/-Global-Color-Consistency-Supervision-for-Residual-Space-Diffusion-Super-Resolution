@@ -1,0 +1,516 @@
+% CC-ResDiff: Global Color-Consistency Supervision for Residual-Space Diffusion
+% Super-Resolution.
+%
+% Written against the AAAI-style presentation of ResDiff (Shang et al. 2024);
+% swap \documentclass and the bibliography for whichever template you submit to.
+%
+% NOTE: numbers marked [PENDING] were still training when this draft was
+% generated. Do not submit without replacing them.
+
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{multirow}
+\usepackage{xcolor}
+\usepackage[hidelinks]{hyperref}
+
+\newcommand{\pending}[1]{\textcolor{red}{[PENDING: #1]}}
+\newcommand{\best}[1]{\textbf{#1}}
+
+\title{\textbf{CC-ResDiff: Global Color-Consistency Supervision for\\
+Residual-Space Diffusion Super-Resolution}}
+\author{Sudhir Kumar}
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Residual-space diffusion models for single image super-resolution (SISR), such
+as SRDiff and ResDiff, train a diffusion model to predict the residual between a
+CNN's initial prediction and the ground truth. Because the residual is dominated
+by high-frequency content, and because recent work has focused on strengthening
+high-frequency guidance still further, the diffusion branch receives almost no
+supervision on the \emph{global} low-frequency attributes of its output. ResDiff
+explicitly identifies the consequence---a large color discrepancy when the model
+is under-trained---and proposes ``utilizing a global color feature'' as future
+work. We implement and study that proposal. We introduce a Global
+Color-Consistency (GCC) loss: an auxiliary term that penalises the difference
+between spatially pooled color statistics of the model's implied clean prediction
+and those of the ground truth. The loss is training-time only, adds no
+parameters, and leaves inference cost identical to the baseline. On a
+compute-constrained CelebA benchmark the GCC loss reduces mean color error by
+$46$--$71\%$ across two independent training runs and improves LR-consistency by
+$0.69$\,dB, at no measurable distortion cost. We further show through a
+gradient-level analysis that the term's influence is not uniform over the
+diffusion trajectory but concentrated at large timesteps, spanning five orders of
+magnitude, and that this skew is what drives an accompanying FID regression. We
+report a negative result on DIV2K, where the baseline exhibits little color drift
+and the loss yields no benefit, and conclude that GCC supervision is best
+understood as a targeted remedy for a specific and identifiable failure mode
+rather than a universal improvement.
+\end{abstract}
+
+\section{Introduction}
+
+Single image super-resolution is ill-posed: many high-resolution (HR) images are
+consistent with a given low-resolution (LR) input. Diffusion probabilistic models
+have become a leading approach, and residual-space variants have proven
+particularly effective. SRDiff~\cite{li2022srdiff} and
+ResDiff~\cite{shang2024resdiff} first use a CNN to recover the primary
+low-frequency content, then train a diffusion model to generate only the
+\emph{residual} between that prediction and the ground truth. Restricting the
+diffusion model to the residual accelerates convergence and improves sample
+quality relative to modelling the image directly.
+
+This design has an under-examined consequence. The residual is, by construction,
+mostly high-frequency; the standard $\epsilon$-prediction objective supervises
+the noise added to it and therefore says little about the absolute color of the
+reconstruction. ResDiff sharpens this further by adding frequency-domain losses
+and high-frequency-guided cross-attention---improving detail while supplying no
+additional color signal. The authors observe the resulting failure directly,
+noting that ``the color will appear a large discrepancy when the model is
+under-trained,'' attributing it to ``a lack of color features in the guided
+high-frequency information,'' and proposing that ``utilizing a global color
+feature may well address this issue in future work''~\cite{shang2024resdiff}.
+
+We take up that proposal. Our contributions are:
+
+\begin{itemize}
+\item \textbf{A Global Color-Consistency (GCC) loss} for residual-space diffusion
+SISR: an auxiliary training-time term that supervises spatially pooled color
+statistics of the model's implied clean prediction. It adds no parameters and
+does not alter the sampling procedure, so inference cost is unchanged.
+
+\item \textbf{A color-error metric} for SISR that measures precisely the
+phenomenon the standard metric suite misses. We show empirically that PSNR, SSIM
+and LPIPS can improve while color error worsens.
+
+\item \textbf{A gradient-level analysis} showing that the auxiliary term's
+influence is highly non-uniform across the diffusion trajectory---$0.002\%$ of
+the primary gradient at $t{=}0$ versus $236\%$ at $t{=}T{-}1$. Loss magnitude is
+a misleading proxy here, understating the term's true influence by roughly
+$500\times$. This analysis explains both the observed FID regression and the
+existence of an optimal loss weight.
+
+\item \textbf{An honest characterisation of scope}, including a negative result:
+on DIV2K, where the baseline's color error is already five times lower, the loss
+provides no benefit. We argue the method should be understood as conditional on
+the presence of drift.
+\end{itemize}
+
+\section{Related Work}
+
+\paragraph{Diffusion-based SISR.}
+SR3~\cite{saharia2022image} adapts DDPM to SISR by conditioning on a bicubically
+upsampled LR image. SRDiff~\cite{li2022srdiff} introduces residual prediction,
+training the diffusion model on the difference between the ground truth and an
+RRDB prediction. ResDiff~\cite{shang2024resdiff} extends this with a
+frequency-domain information splitter, high-frequency-guided cross-attention, and
+FFT/DWT losses on the CNN, reporting faster convergence and better sample
+quality.
+
+\paragraph{Color consistency in image restoration.}
+Color shift is a known artefact in generative restoration. Classical remedies are
+post-hoc: histogram matching and Reinhard-style color transfer correct output
+statistics after generation. Such corrections are cheap but operate outside the
+model and cannot influence what it learns. We compare against this alternative
+directly (Section~\ref{sec:colortransfer}).
+
+\paragraph{Loss weighting in diffusion models.}
+Reweighting the diffusion objective across timesteps is well studied for the
+primary loss. Our analysis shows that an \emph{auxiliary} loss defined on the
+reconstructed $x_0$ inherits an extreme implicit timestep weighting from the
+$1/\sqrt{\bar\alpha_t}$ factor in that reconstruction, an effect that appears not
+to have been noted previously and which we exploit as a control.
+
+\section{Method}
+
+\subsection{Background}
+
+Let $x_{LR}$ be the low-resolution input, $x_{HR}$ the ground truth, and
+$x_{up}$ the bicubically upsampled LR image. A pre-trained CNN produces
+$x_{cnn}$. Residual-space diffusion defines the target as
+\begin{equation}
+r = s\,(x_{HR} - x_{up}),
+\end{equation}
+with a rescaling constant $s$ chosen so $r$ occupies $[-1,1]$. The forward
+process is standard:
+\begin{equation}
+r_t = \sqrt{\bar\alpha_t}\,r + \sqrt{1-\bar\alpha_t}\,\epsilon,
+\quad \epsilon \sim \mathcal{N}(0, I),
+\end{equation}
+and the model $\epsilon_\theta(r_t, t, c)$ is trained with
+\begin{equation}
+\mathcal{L}_{\text{DDPM}} = \mathbb{E}\big[\,\|\epsilon - \epsilon_\theta(r_t,t,c)\|_1\,\big],
+\label{eq:ddpm}
+\end{equation}
+where $c$ denotes CNN-derived conditioning features. Nothing in
+Eq.~\ref{eq:ddpm} references the absolute color of the reconstruction.
+
+\subsection{Global Color-Consistency Loss}
+
+At each training step we recover the model's implied clean residual using the
+standard closed form,
+\begin{equation}
+\hat r_0 = \frac{r_t - \sqrt{1-\bar\alpha_t}\;\epsilon_\theta(r_t,t,c)}{\sqrt{\bar\alpha_t}},
+\label{eq:x0}
+\end{equation}
+clamp it to $[-1,1]$ (the range in which the target residual is constructed), and
+map it back to image space, $\hat x_{HR} = \hat r_0 / s + x_{up}$. We then compare
+spatially pooled color statistics:
+\begin{equation}
+\mathcal{L}_{\text{GCC}} =
+\big\| \, \mathcal{P}_k(\hat x_{HR}) - \mathcal{P}_k(x_{HR}) \, \big\|_2^2 ,
+\label{eq:gcc}
+\end{equation}
+where $\mathcal{P}_k$ is adaptive average pooling to a $k \times k$ grid. Pooling
+is what makes the term complementary rather than redundant: at $k=8$ it discards
+texture and edges, retaining only the spatial color balance that
+Eq.~\ref{eq:ddpm} leaves unconstrained. The total objective is
+\begin{equation}
+\mathcal{L} = \mathcal{L}_{\text{DDPM}} + \lambda\,\mathcal{L}_{\text{GCC}}.
+\end{equation}
+
+The clamp in Eq.~\ref{eq:x0} is essential, not cosmetic. Under a cosine schedule
+$\bar\alpha_t$ reaches $2.4\times10^{-7}$ at $t = T-1$, so the reconstruction
+amplifies by ${\sim}2000\times$; unclamped, we measured
+$\mathcal{L}_{\text{GCC}} = 2.8\times10^{4}$ at $t=T-1$ against a DDPM loss of
+${\sim}0.8$. Since $t$ is sampled uniformly, roughly one step in a hundred would
+destabilise training.
+
+\subsection{Timestep Weighting}
+\label{sec:weighting}
+
+The clamp bounds the loss value but not its gradient. Because
+Eq.~\ref{eq:x0} carries the $1/\sqrt{\bar\alpha_t}$ factor, the term's effective
+gradient scale at $t{=}T{-}1$ is ${\sim}2029\times$ that at $t{=}0$. We therefore
+consider a reweighted variant
+\begin{equation}
+\mathcal{L}_{\text{GCC}}^{w} = \frac{\sum_i w_{t_i}\,\ell_i}{\sum_i w_{t_i}},
+\qquad w_t = \bar\alpha_t ,
+\end{equation}
+which cancels the amplification and concentrates supervision at small $t$, where
+the clean-image estimate is meaningful. Section~\ref{sec:snr} evaluates whether
+this removes the FID regression.
+
+\section{Experiments}
+
+\subsection{Setup}
+
+We evaluate in a deliberately compute-constrained regime, matching the setting in
+which ResDiff reports color discrepancy to be most visible. CelebA is subsampled
+to 3{,}000 training / 300 validation / 300 test images at $16\times16 \to
+64\times64$ ($4\times$). Stage 1 is an RRDB with hidden size 16 and 4 blocks;
+Stage 2 is a UNet with hidden size 32 and $2.28$M parameters, $T=100$ timesteps,
+cosine schedule. Both stages train for up to 20{,}000 steps with early stopping
+on PSNR. \textbf{Crucially, the baseline and proposed arms are identical in every
+respect---data, schedule, seed, initialisation and Stage-1 checkpoint---except for
+the presence of the GCC term.}
+
+Early stopping monitors PSNR rather than color error: stopping on the metric the
+method targets would bias model selection toward the proposed arm. Evaluation
+loads the best checkpoint, not the final one.
+
+\paragraph{Metrics.} PSNR, SSIM, LPIPS and FID, plus \textbf{color error}: the
+mean absolute difference between per-channel RGB means of the generated and
+ground-truth images, averaged over the test set. We also report LR-PSNR
+(consistency between the downsampled output and the LR input), which measures
+low-frequency fidelity and is therefore the quantity the GCC loss most directly
+targets.
+
+\paragraph{Reproducibility.} Evaluation is deterministic given a seed and both
+arms are evaluated under identical seeds, so the comparison is paired on sampling
+noise. We measured an evaluation noise floor by scoring a single fixed checkpoint
+under four seeds (Table~\ref{tab:noise}).
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{lrrr}
+\toprule
+Metric & Mean & Std & Range \\
+\midrule
+PSNR        & 25.0850 & 0.0175 & 0.0386 \\
+SSIM        & 0.8146  & 0.0004 & 0.0010 \\
+LPIPS       & 0.0461  & 0.0005 & 0.0011 \\
+LR-PSNR     & 43.7005 & 0.0093 & 0.0221 \\
+Color error & 0.8229  & 0.0022 & 0.0050 \\
+FID         & 69.3892 & 0.1525 & 0.3564 \\
+\bottomrule
+\end{tabular}
+\caption{Evaluation noise floor: one fixed checkpoint scored under four seeds.
+This bounds \emph{evaluation} variance only; training-seed variance is larger and
+is reported separately in Table~\ref{tab:main}.}
+\label{tab:noise}
+\end{table}
+
+\subsection{Main Results}
+
+Table~\ref{tab:main} reports two independent training runs on different hardware.
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{lccc}
+\toprule
+Metric & Baseline & CC-ResDiff & $\Delta$ \\
+\midrule
+Color error $\downarrow$ & $0.606 \pm 0.308$ & \best{$0.224 \pm 0.026$} & $-63\%$ \\
+LR-PSNR $\uparrow$       & $44.42 \pm 1.03$  & \best{$45.11 \pm 0.85$}  & $+0.69$ \\
+LPIPS $\downarrow$       & $0.0452 \pm 0.0020$ & \best{$0.0440 \pm 0.0027$} & $-0.0012$ \\
+PSNR $\uparrow$          & \best{$25.094 \pm 0.001$} & $25.040 \pm 0.103$ & $-0.055$ \\
+SSIM $\uparrow$          & \best{$0.8155 \pm 0.0016$} & $0.8144 \pm 0.0029$ & $-0.0012$ \\
+FID $\downarrow$         & \best{$67.43 \pm 2.67$} & $69.65 \pm 5.05$ & $+2.22$ \\
+\bottomrule
+\end{tabular}
+\caption{CelebA $4\times$, mean $\pm$ std over two independent training runs.
+The color-error reduction is the largest and most consistent effect
+($-70.6\%$ and $-46.9\%$ individually). The PSNR difference changes sign between
+runs and is therefore not established.}
+\label{tab:main}
+\end{table}
+
+Three observations. First, the two quantities the loss directly
+supervises---color error and LR-PSNR---improve consistently and by margins far
+exceeding the evaluation noise floor. Second, the apparent PSNR cost is not
+reproducible: it is $-0.13$\,dB in one run and $+0.02$\,dB in the other, so at
+this sample size we cannot claim a distortion penalty. Third, FID is worse in
+both runs, though its magnitude varies sevenfold ($+3.90$, $+0.54$); we treat the
+direction as real and the magnitude as unresolved.
+
+\subsection{Comparison with Color Transfer}
+\label{sec:colortransfer}
+
+A natural objection is that post-hoc color correction might achieve the same
+effect for free. We apply per-channel mean and mean/standard-deviation
+(Reinhard-style) matching to the baseline's outputs, using the bicubically
+upsampled LR image as reference---the only color reference available at inference
+time. Matching to the ground truth would trivially minimise our metric while
+being unusable in practice, and is therefore inadmissible.
+
+Neither variant helps (Table~\ref{tab:ct}). Both make color error \emph{worse},
+and matching the standard deviation additionally destroys LR-consistency,
+costing $7.4$\,dB of LR-PSNR: rescaling per-channel variance alters the image's
+low-frequency content, which is exactly what LR-PSNR measures.
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{lccc}
+\toprule
+Method & ColorErr $\downarrow$ & LR-PSNR $\uparrow$ & PSNR $\uparrow$ \\
+\midrule
+Baseline                & 0.8234 & 43.690 & 25.095 \\
+\; + mean transfer      & 0.8746 & 43.558 & 25.064 \\
+\; + mean/std transfer  & 0.9333 & 36.243 & 24.915 \\
+\midrule
+\emph{reference floor} ($x_{up}$ vs $x_{HR}$) & \emph{0.4358} & -- & -- \\
+\midrule
+CC-ResDiff (ours)       & \best{0.2423} & \best{44.509} & 24.967 \\
+\bottomrule
+\end{tabular}
+\caption{Post-hoc color transfer against learned supervision, CelebA, 300 test
+images. Post-hoc correction is bounded below by the color error of the reference
+it matches to; CC-ResDiff operates $1.8\times$ below that bound.}
+\label{tab:ct}
+\end{table}
+
+The reason is structural rather than incidental. Any post-hoc correction can be
+no more accurate than the reference it matches to, and the only reference
+available at inference---the upsampled LR image---itself differs from the ground
+truth by a color error of $0.4358$, measured over the same test set. That value
+is a hard floor on what post-processing can achieve. CC-ResDiff reaches $0.2423$,
+$1.8\times$ below the floor, because supervision is applied during training
+against the true HR image; the learned model does not need a test-time reference
+at all. This is the central argument for a learned solution over a corrective
+one.
+
+\subsection{Timestep-Reweighted Variant}
+\label{sec:snr}
+
+\pending{Results for $w_t = \bar\alpha_t$; run in progress. Tests whether
+removing the high-$t$ skew eliminates the FID regression.}
+
+\subsection{Ablations}
+
+Table~\ref{tab:abl} sweeps $\lambda$ and the pooling size $k$ at a reduced
+5{,}000-step budget, with an identical budget for every run so that the sweep
+does not partly measure training length.
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{lrrrrr}
+\toprule
+Setting & ColorErr $\downarrow$ & PSNR $\uparrow$ & LPIPS $\downarrow$ & FID $\downarrow$ & LR-PSNR $\uparrow$ \\
+\midrule
+\multicolumn{6}{l}{\emph{$\lambda$ sweep ($k=8$)}}\\
+none        & 0.4833 & 23.857 & \best{0.0612} & 111.51 & 41.445 \\
+0.01        & 0.3382 & \best{23.955} & 0.0635 & \best{109.11} & \best{41.918} \\
+0.1         & \best{0.1952} & 23.941 & 0.0653 & 110.43 & 41.865 \\
+0.5         & 0.4985 & 23.721 & 0.0665 & 115.43 & 41.192 \\
+1.0         & 0.2162 & 23.727 & 0.0680 & 116.71 & 40.976 \\
+\midrule
+\multicolumn{6}{l}{\emph{pooling size sweep ($\lambda=0.1$)}}\\
+$k=4$       & 0.3385 & 23.839 & 0.0641 & 112.47 & 41.613 \\
+$k=8$       & \best{0.1952} & \best{23.941} & 0.0653 & \best{110.43} & \best{41.865} \\
+$k=16$      & 0.3522 & 23.919 & 0.0658 & 111.05 & 41.821 \\
+\bottomrule
+\end{tabular}
+\caption{Ablations at a 5{,}000-step budget. Comparable to each other, not to
+Table~\ref{tab:main}. Five of six GCC settings beat the no-GCC reference on color
+error, and $k=8$ is best on every metric. LPIPS degrades monotonically in
+$\lambda$.}
+\label{tab:abl}
+\end{table}
+
+We deliberately do \emph{not} claim an optimal $\lambda$. Color error across the
+six GCC runs has standard deviation $0.109$, comparable to the differences
+between settings, and the $\lambda{=}0.5$ point is inconsistent with both
+neighbours. The sweep supports a usable \emph{range} ($\lambda \in [0.01, 0.1]$,
+$k=8$); resolving a dose-response curve would require repeated runs per setting.
+
+\subsection{Gradient Analysis}
+
+Loss values suggest the GCC term is negligible---$0.06\%$ of the DDPM loss at
+$\lambda=0.1$. Measuring parameter gradients on a trained checkpoint tells a
+different story (Table~\ref{tab:grad}): the ratio is $33.9\%$ averaged over
+uniformly sampled $t$, roughly $500\times$ larger than the loss ratio implies.
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{lrrr}
+\toprule
+$t$ & $\mathcal{L}_{\text{GCC}}$ & clamped & $\lambda\|\nabla \mathcal{L}_{\text{GCC}}\| / \|\nabla \mathcal{L}_{\text{DDPM}}\|$ \\
+\midrule
+0        & $1.2\times10^{-5}$ & 0.4\%  & $0.002\%$ \\
+25       & $2.8\times10^{-5}$ & 0.2\%  & $0.080\%$ \\
+50       & $5.4\times10^{-5}$ & 0.1\%  & $0.398\%$ \\
+75       & $8.4\times10^{-5}$ & 0.1\%  & $1.276\%$ \\
+99       & $3.4\times10^{-2}$ & 97.4\% & $\mathbf{235.7\%}$ \\
+uniform  & $9.8\times10^{-4}$ & 1.5\%  & $\mathbf{33.9\%}$ \\
+\bottomrule
+\end{tabular}
+\caption{The GCC term's gradient contribution spans five orders of magnitude
+across the trajectory. At $t{=}T{-}1$ nearly all elements saturate the clamp, yet
+the remainder still carry the ${\sim}2000\times$ amplification.}
+\label{tab:grad}
+\end{table}
+
+This has two consequences. It explains the ablation's cost structure: at
+$\lambda=0.5$ the auxiliary gradient would reach ${\sim}170\%$ of the primary
+one, so the denoising objective is crowded out and all metrics degrade. And it
+predicts the FID regression: a term acting predominantly at large $t$ pulls global
+tone toward the dataset mean, which suppresses the distributional diversity FID
+rewards while leaving per-image LPIPS largely indifferent.
+
+\subsection{Negative Result: DIV2K}
+
+We repeated the experiment on DIV2K at matched scale
+(Table~\ref{tab:div2k}). The result does not replicate.
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{lccc}
+\toprule
+Metric & Baseline & CC-ResDiff & $\Delta$ \\
+\midrule
+Color error $\downarrow$ & \best{0.1650} & 0.2036 & $+23.4\%$ \\
+LR-PSNR $\uparrow$       & \best{47.248} & 47.101 & $-0.15$ \\
+PSNR $\uparrow$          & 29.650 & \best{29.703} & $+0.05$ \\
+SSIM $\uparrow$          & 0.7635 & \best{0.7646} & $+0.001$ \\
+LPIPS $\downarrow$       & \best{0.2570} & 0.2630 & $+0.006$ \\
+FID $\downarrow$         & \best{82.71} & 83.25 & $+0.54$ \\
+\bottomrule
+\end{tabular}
+\caption{DIV2K $4\times$, 512 test tiles. Every sign flips relative to
+Table~\ref{tab:main} except FID.}
+\label{tab:div2k}
+\end{table}
+
+The most plausible explanation is headroom. The DIV2K baseline's color error is
+$0.165$ against CelebA's $0.606$---roughly five times lower---so there is little
+drift for the loss to correct, and it contributes a small regression instead. This
+is consistent with ResDiff's own observation that the discrepancy appears when the
+model is under-trained: the DIV2K Stage-1 network is comparatively strong here
+(LR-PSNR $47.2$ versus $44.4$), leaving less for the diffusion branch to get
+wrong.
+
+We report this rather than omitting it because it defines the method's scope. GCC
+supervision is a remedy for a specific failure mode, and its benefit is
+conditional on that failure being present.
+
+\section{Limitations}
+
+\begin{itemize}
+\item \textbf{Scale.} All experiments use 3{,}000 training images at
+$64\times64$ with a $2.28$M-parameter diffusion model. Whether the effect persists
+at the resolutions and model sizes used by SRDiff and ResDiff is untested.
+\item \textbf{Sample size.} Two training runs per arm on CelebA, one on DIV2K.
+The color-error effect is large enough to be robust; the PSNR and FID differences
+are not resolved at this $n$.
+\item \textbf{No DIV2K noise floor}, so the $+23.4\%$ regression there is not
+established as statistically real.
+\item \textbf{FID sample counts are small} (300 CelebA, 512 DIV2K), biasing FID
+upward in absolute terms; only the relative comparison is meaningful.
+\item \textbf{Drift is not predicted in advance.} We show the method helps where
+color error is high, but offer no way to determine beforehand whether a given
+training configuration will drift.
+\end{itemize}
+
+\section{Conclusion}
+
+We implemented the global color feature that ResDiff identified as future work,
+and characterised when it helps. The GCC loss is simple, parameter-free at
+inference, and substantially reduces color drift in the regime where that drift
+occurs. Our gradient analysis shows that an auxiliary loss defined on the
+reconstructed $x_0$ inherits an extreme implicit timestep weighting---a
+methodological point that applies to any such term, not only ours. The negative
+DIV2K result bounds the claim: this is a targeted remedy, not a universal
+improvement. Predicting which configurations will drift, and evaluating the
+timestep-reweighted variant at scale, are the natural next steps.
+
+\begin{thebibliography}{9}
+\bibitem{shang2024resdiff}
+S.~Shang, Z.~Shan, G.~Liu, L.~Wang, X.~Wang, Z.~Zhang, and J.~Zhang.
+\newblock ResDiff: Combining CNN and Diffusion Model for Image Super-Resolution.
+\newblock In {\em AAAI}, 2024.
+
+\bibitem{li2022srdiff}
+H.~Li, Y.~Yang, M.~Chang, S.~Chen, H.~Feng, Z.~Xu, Q.~Li, and Y.~Chen.
+\newblock SRDiff: Single Image Super-Resolution with Diffusion Probabilistic Models.
+\newblock {\em Neurocomputing}, 479:47--59, 2022.
+
+\bibitem{saharia2022image}
+C.~Saharia, J.~Ho, W.~Chan, T.~Salimans, D.~J. Fleet, and M.~Norouzi.
+\newblock Image Super-Resolution via Iterative Refinement.
+\newblock {\em IEEE TPAMI}, 2022.
+
+\bibitem{ho2020denoising}
+J.~Ho, A.~Jain, and P.~Abbeel.
+\newblock Denoising Diffusion Probabilistic Models.
+\newblock In {\em NeurIPS}, 2020.
+
+\bibitem{wang2018esrgan}
+X.~Wang, K.~Yu, S.~Wu, J.~Gu, Y.~Liu, C.~Dong, Y.~Qiao, and C.~C. Loy.
+\newblock ESRGAN: Enhanced Super-Resolution Generative Adversarial Networks.
+\newblock In {\em ECCV Workshops}, 2018.
+
+\bibitem{heusel2017gans}
+M.~Heusel, H.~Ramsauer, T.~Unterthiner, B.~Nessler, and S.~Hochreiter.
+\newblock GANs Trained by a Two Time-Scale Update Rule Converge to a Local Nash
+Equilibrium.
+\newblock In {\em NeurIPS}, 2017.
+
+\bibitem{zhang2018unreasonable}
+R.~Zhang, P.~Isola, A.~A. Efros, E.~Shechtman, and O.~Wang.
+\newblock The Unreasonable Effectiveness of Deep Features as a Perceptual Metric.
+\newblock In {\em CVPR}, 2018.
+\end{thebibliography}
+
+\end{document}

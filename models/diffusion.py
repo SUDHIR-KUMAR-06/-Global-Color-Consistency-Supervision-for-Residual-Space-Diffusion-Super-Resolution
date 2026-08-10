@@ -161,7 +161,8 @@ class GaussianDiffusion(nn.Module):
         p_losses, x_tp1, noise_pred, x_t, x_t_gt, x_0, x_0_grad = self.p_losses(x, t, cond, img_lr_up, *args, **kwargs)
         ret = {'q': p_losses}
         if hparams['use_color_loss']:
-            ret['color'] = hparams['lambda_color'] * self.color_consistency_loss(x_0_grad, img_hr, img_lr_up)
+            ret['color'] = hparams['lambda_color'] * self.color_consistency_loss(
+                x_0_grad, img_hr, img_lr_up, t)
         if not hparams['fix_rrdb']:
             if hparams['aux_l1_loss']:
                 ret['aux_l1'] = F.l1_loss(rrdb_out, img_hr)
@@ -209,7 +210,7 @@ class GaussianDiffusion(nn.Module):
 
         return loss, x_tp1_gt, noise_pred, x_t_pred, x_t_gt, x0_pred, x0_pred_grad
 
-    def color_consistency_loss(self, r_pred_0, img_hr, img_lr_up):
+    def color_consistency_loss(self, r_pred_0, img_hr, img_lr_up, t=None):
         """Global Color-Consistency (GCC) loss (CC-ResDiff): MSE between
         low-frequency/pooled color statistics of the reconstructed HR prediction
         and the ground-truth HR image, isolating global tone/color drift from the
@@ -232,6 +233,14 @@ class GaussianDiffusion(nn.Module):
         large t. In effect this is a high-t color loss with a heavy-tailed
         contribution, not a uniformly applied one -- worth stating explicitly
         rather than describing the term as globally weighted by lambda_color.
+
+        color_loss_weight_mode counteracts that skew by reweighting each sample
+        by its timestep:
+          none      w_t = 1                  (uniform; gradient dominated by large t)
+          alpha_bar w_t = alpha_bar_t        (cancels the 1/sqrt(alpha_bar) blow-up
+                                              and then some, biasing towards small t
+                                              where the x0 estimate is meaningful)
+          snr       w_t = alpha_bar/(1-alpha_bar), capped, a sharper version of the same
         """
         with torch.cuda.amp.autocast(enabled=False):
             r_pred_0 = r_pred_0.float().clamp(-1, 1)
@@ -240,7 +249,22 @@ class GaussianDiffusion(nn.Module):
             size = hparams['color_pool_size']
             pred_low = F.adaptive_avg_pool2d(x_hr_pred, output_size=(size, size))
             gt_low = F.adaptive_avg_pool2d(img_hr.float(), output_size=(size, size))
-            return F.mse_loss(pred_low, gt_low)
+
+            mode = hparams['color_loss_weight_mode']
+            if mode == 'none' or t is None:
+                return F.mse_loss(pred_low, gt_low)
+
+            # per-sample MSE so each can carry its own timestep weight
+            per_sample = (pred_low - gt_low).pow(2).flatten(1).mean(1)
+            ab = extract(self.alphas_cumprod, t, per_sample.shape).flatten().float()
+            if mode == 'alpha_bar':
+                w = ab
+            elif mode == 'snr':
+                w = (ab / (1 - ab).clamp_min(1e-8)).clamp(max=hparams['color_loss_snr_max'])
+            else:
+                raise NotImplementedError(f'color_loss_weight_mode={mode}')
+            # normalise so lambda_color keeps a comparable scale across modes
+            return (w * per_sample).sum() / w.sum().clamp_min(1e-8)
 
     def q_sample(self, x_start, t, noise=None):
         noise = default(noise, lambda: torch.randn_like(x_start))

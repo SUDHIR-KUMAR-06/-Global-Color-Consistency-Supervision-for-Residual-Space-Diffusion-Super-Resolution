@@ -1,0 +1,7 @@
+base_config: ./diffsr_celeb_small_cc.yaml
+
+# CC-ResDiff with timestep-reweighted GCC. Identical to diffsr_celeb_small_cc.yaml
+# apart from the weighting: alpha_bar cancels the 1/sqrt(alpha_bar) amplification
+# that otherwise concentrates the term's gradient at large t, where the predicted
+# x0 is mostly noise. Tests whether the FID regression is caused by that skew.
+color_loss_weight_mode: alpha_bar
