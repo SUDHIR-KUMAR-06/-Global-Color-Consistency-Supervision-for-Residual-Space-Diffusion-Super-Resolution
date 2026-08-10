@@ -56,9 +56,11 @@ rather than a universal improvement.
 \section{Introduction}
 
 Single image super-resolution is ill-posed: many high-resolution (HR) images are
-consistent with a given low-resolution (LR) input. Diffusion probabilistic models
-have become a leading approach, and residual-space variants have proven
-particularly effective. SRDiff~\cite{li2022srdiff} and
+consistent with a given low-resolution (LR) input. Adversarial
+methods~\cite{wang2018esrgan} dominated early generative approaches but are prone
+to unstable training and mode collapse. Denoising diffusion probabilistic
+models~\cite{ho2020denoising} have since become the leading alternative, and
+residual-space variants have proven particularly effective. SRDiff~\cite{li2022srdiff} and
 ResDiff~\cite{shang2024resdiff} first use a CNN to recover the primary
 low-frequency content, then train a diffusion model to generate only the
 \emph{residual} between that prediction and the ground truth. Restricting the
@@ -167,8 +169,8 @@ spatially pooled color statistics:
 \label{eq:gcc}
 \end{equation}
 where $\mathcal{P}_k$ is adaptive average pooling to a $k \times k$ grid. Pooling
-is what makes the term complementary rather than redundant: at $k=8$ it discards
-texture and edges, retaining only the spatial color balance that
+is what makes Eq.~\ref{eq:gcc} complementary rather than redundant: at $k=8$ it
+discards texture and edges, retaining only the spatial color balance that
 Eq.~\ref{eq:ddpm} leaves unconstrained. The total objective is
 \begin{equation}
 \mathcal{L} = \mathcal{L}_{\text{DDPM}} + \lambda\,\mathcal{L}_{\text{GCC}}.
@@ -214,7 +216,8 @@ Early stopping monitors PSNR rather than color error: stopping on the metric the
 method targets would bias model selection toward the proposed arm. Evaluation
 loads the best checkpoint, not the final one.
 
-\paragraph{Metrics.} PSNR, SSIM, LPIPS and FID, plus \textbf{color error}: the
+\paragraph{Metrics.} PSNR, SSIM, LPIPS~\cite{zhang2018unreasonable} and
+FID~\cite{heusel2017gans}, plus \textbf{color error}: the
 mean absolute difference between per-channel RGB means of the generated and
 ground-truth images, averaged over the test set. We also report LR-PSNR
 (consistency between the downsampled output and the LR input), which measures
@@ -280,6 +283,41 @@ reproducible: it is $-0.13$\,dB in one run and $+0.02$\,dB in the other, so at
 this sample size we cannot claim a distortion penalty. Third, FID is worse in
 both runs, though its magnitude varies sevenfold ($+3.90$, $+0.54$); we treat the
 direction as real and the magnitude as unresolved.
+
+\subsection{Per-Image Consistency and Effect Size}
+\label{sec:persample}
+
+The aggregate improvement could in principle be produced by a handful of
+outliers. It is not: CC-ResDiff has lower color error than the baseline on
+$298$ of $300$ test images ($99.3\%$), with a mean per-image reduction of
+$0.578$. The effect is systematic rather than distributional.
+
+We are explicit about its magnitude. Color error is expressed in $0$--$255$
+intensity units, so the reduction from $0.82$ to $0.24$ is a sub-one-level shift
+in mean channel intensity. It is far above measurement noise (Table~\ref{tab:noise}
+gives $\sigma = 0.0022$) and consistent across essentially every test image, but
+it is close to the threshold of visual perceptibility. Figure~\ref{fig:qual}
+therefore shows a measurable rather than a dramatic difference, and we do not
+claim otherwise.
+
+This is a consequence of the operating point, not of the method. ResDiff reports
+color discrepancy as ``large'' when a model is under-trained; our baseline, though
+compute-constrained, is trained to convergence with early stopping and exhibits
+correspondingly mild drift. The regime in which drift is visually objectionable is
+precisely the regime in which we expect the loss to matter more, and quantifying
+that relationship is left to future work.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{qualitative.png}
+\caption{CelebA $4\times$. Columns: LR input, bicubic, baseline, CC-ResDiff,
+ground truth. Rows are the five test images with the largest color-error
+\emph{difference} between arms---a selection rule chosen to display the
+phenomenon under discussion, not the most flattering examples. Per-image color
+error $\Delta c$ is printed beneath each result. Differences are measurable but
+visually subtle at this operating point; see Section~\ref{sec:persample}.}
+\label{fig:qual}
+\end{figure}
 
 \subsection{Comparison with Color Transfer}
 \label{sec:colortransfer}
@@ -406,7 +444,16 @@ $\lambda=0.5$ the auxiliary gradient would reach ${\sim}170\%$ of the primary
 one, so the denoising objective is crowded out and all metrics degrade. And it
 predicts the FID regression: a term acting predominantly at large $t$ pulls global
 tone toward the dataset mean, which suppresses the distributional diversity FID
-rewards while leaving per-image LPIPS largely indifferent.
+rewards while leaving per-image LPIPS largely indifferent. The reweighting of
+Section~\ref{sec:weighting} is the direct test of that prediction: if the skew
+causes the regression, cancelling it should remove the regression.
+
+More generally, this is a property of \emph{any} auxiliary loss defined on the
+reconstructed $x_0$ rather than of ours specifically. Such a term inherits the
+$1/\sqrt{\bar\alpha_t}$ factor and is therefore implicitly weighted towards large
+$t$ by orders of magnitude, whether or not its designer intended it. We recommend
+reporting the gradient ratio, not the loss ratio, whenever such a term is
+introduced.
 
 \subsection{Negative Result: DIV2K}
 
@@ -461,6 +508,11 @@ upward in absolute terms; only the relative comparison is meaningful.
 \item \textbf{Drift is not predicted in advance.} We show the method helps where
 color error is high, but offer no way to determine beforehand whether a given
 training configuration will drift.
+\item \textbf{Effect size at this operating point is small in absolute terms.}
+The color-error reduction is a sub-one-level shift in mean channel intensity:
+systematic ($298/300$ images) and far above measurement noise, but near the limit
+of visual perceptibility. Whether the benefit grows in the more severely
+under-trained regime ResDiff describes is untested.
 \end{itemize}
 
 \section{Conclusion}
