@@ -43,6 +43,8 @@ GROUPS = {
     'celeba_baseline': ['diffsr_celebA_small_baseline', 'diffsr_celebA_s2024_baseline'],
     'celeba_cc':       ['diffsr_celebA_small_cc',       'diffsr_celebA_s2024_cc'],
     'celeba_cc_snr':   ['diffsr_celebA_small_cc_snr'],
+    'celeba25k_baseline': ['diffsr_celebA_25k_baseline'],
+    'celeba25k_cc':       ['diffsr_celebA_25k_cc'],
     'div2k_baseline':  ['diffsr_div2k_small_baseline'],
     'div2k_cc':        ['diffsr_div2k_small_cc'],
 }
@@ -87,7 +89,8 @@ def main():
     args = ap.parse_args()
 
     lines = []
-    for title, gb, gc in [('CelebA 4x', 'celeba_baseline', 'celeba_cc'),
+    for title, gb, gc in [('CelebA 4x (3k imgs)', 'celeba_baseline', 'celeba_cc'),
+                          ('CelebA 4x (25k imgs, full Stage-1)', 'celeba25k_baseline', 'celeba25k_cc'),
                           ('DIV2K 4x', 'div2k_baseline', 'div2k_cc')]:
         rb, rc = collect(gb), collect(gc)
         if not rb or not rc:

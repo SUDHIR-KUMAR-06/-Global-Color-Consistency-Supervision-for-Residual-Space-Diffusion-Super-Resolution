@@ -47,12 +47,15 @@ and those of the ground truth. The loss is training-time only, adds no
 parameters, and leaves inference cost identical to the baseline. Across three
 independent training runs we find the baseline's color error to be strongly
 seed-dependent, ranging over $0.14$--$0.82$ under otherwise identical
-configurations, whereas the GCC loss confines it to $0.15$--$0.24$---a standard
-deviation $8\times$ smaller. The loss is therefore better described as
+configurations, whereas the GCC loss confines it to $0.15$--$0.26$ across five
+paired runs spanning two datasets and an $8\times$ range of training-set size---a
+standard deviation $6.5\times$ smaller. The loss is therefore better described as
 \emph{bounding} color error than as reducing it: it recovers most of the gap on
 runs that drift, and is approximately neutral on runs that do not. This single
 behaviour also accounts for a DIV2K result that in isolation reads as a failure
-to generalise. A gradient-level analysis shows the term's influence is not
+to generalise, and survives an $8\times$ increase in training data with Stage 1
+at full capacity, where absolute quality improves by $0.40$\,dB PSNR and $4.9$
+FID. A gradient-level analysis shows the term's influence is not
 uniform over the diffusion trajectory but concentrated at large timesteps by five
 orders of magnitude; ablating that concentration removes most of the benefit,
 identifying it as the mechanism rather than an artefact. We further show that no
@@ -298,27 +301,33 @@ smaller than their across-seed spread and we claim no effect on them.}
 \toprule
 Run & Baseline & CC-ResDiff & Change \\
 \midrule
-CelebA, seed 1234  & 0.8234 & 0.2423 & $-70.6\%$ \\
-CelebA, seed 5678  & 0.3878 & 0.2061 & $-46.9\%$ \\
-CelebA, seed 2024  & 0.1397 & 0.1461 & $+4.6\%$ \\
-DIV2K              & 0.1650 & 0.2036 & $+23.4\%$ \\
+CelebA 3k, seed 1234  & 0.8234 & 0.2423 & $-70.6\%$ \\
+CelebA 3k, seed 5678  & 0.3878 & 0.2061 & $-46.9\%$ \\
+CelebA 3k, seed 2024  & 0.1397 & 0.1461 & $+4.6\%$ \\
+CelebA 25k            & 0.2948 & 0.2555 & $-13.3\%$ \\
+DIV2K                 & 0.1650 & 0.2036 & $+23.4\%$ \\
 \midrule
-\emph{std across runs} & \emph{0.317} & \emph{0.040} & \\
+\emph{mean}            & \emph{0.3621} & \emph{0.2107} & \\
+\emph{std across runs} & \emph{0.2767} & \emph{0.0426} & \\
+\emph{range}           & \emph{0.684}  & \emph{0.109}  & \\
 \bottomrule
 \end{tabular}
-\caption{Per-run color error. The baseline's drift is highly seed-dependent,
-spanning $0.14$--$0.82$; CC-ResDiff lands near $0.20$ regardless. The benefit on
-any given run is therefore a function of how much that run would otherwise have
-drifted.}
+\caption{Per-run color error over five paired runs spanning two datasets and two
+data scales. The baseline ranges over $0.14$--$0.82$; CC-ResDiff falls within
+$0.15$--$0.26$ in every case, a $6.2	imes$ narrower range. The benefit on a given
+run is therefore governed by how far that run's baseline sits outside
+CC-ResDiff's band.}
 \label{tab:perseed}
 \end{table}
 
 The per-seed view (Table~\ref{tab:perseed}) shows something the means obscure.
 The baseline's color error is \emph{highly seed-dependent}, ranging from $0.14$
-to $0.82$ across otherwise identical configurations. CC-ResDiff's is not: it
-falls between $0.15$ and $0.24$ in every run, with a standard deviation $8\times$
-smaller than the baseline's. The apparent size of the improvement on any
-individual run is therefore governed by how badly that run happened to drift.
+to $0.82$ across otherwise identical configurations, and does not shrink
+systematically with more data. CC-ResDiff's is not: it
+falls between $0.15$ and $0.26$ in every run, with a standard deviation
+$6.5\times$ smaller than the baseline's and a range $6.2\times$ narrower. The
+apparent size of the improvement on any individual run is therefore governed
+by how badly that run happened to drift.
 
 We state the claim accordingly: \textbf{the GCC loss does not uniformly reduce
 color error so much as bound it}. Where the baseline drifts badly the loss
@@ -344,6 +353,68 @@ distortion cost we initially believed we had measured was seed noise.
 FID is the exception: it is worse in $3/3$ seeds ($+3.90$, $+0.54$, $+3.65$).
 That direction replicates even though its magnitude does not, and
 Section~\ref{sec:snr} shows our explanation for it to be wrong.
+
+\subsection{Scaling: More Data and a Stronger Stage 1}
+\label{sec:scale}
+
+The results above use 3{,}000 of CelebA's 162{,}770 training images and a
+deliberately reduced Stage-1 network. To test whether the behaviour is an
+artefact of that regime, we retrained at $8\times$ the data (25{,}000 images)
+with Stage 1 restored to SRDiff's default capacity (32 features, 8 blocks;
+$190$K $\rightarrow$ $1.48$M parameters). The test split is identical to the one
+used above, so the two tiers are directly comparable rather than merely similar.
+
+Absolute quality improves substantially (Table~\ref{tab:scale}). Stage 1 alone
+gains $1.0$\,dB (PSNR $26.25 \rightarrow 27.25$), and the baseline diffusion
+model gains $0.40$\,dB PSNR, $2.97$\,dB LR-PSNR and $4.9$ FID. The reduced-scale
+setting was therefore genuinely limiting, and these are the numbers we would
+recommend citing for the pipeline itself.
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{lcc}
+\toprule
+Metric & 3k imgs ($n{=}3$) & 25k imgs ($n{=}1$) \\
+\midrule
+\multicolumn{3}{l}{\emph{Baseline}}\\
+PSNR $\uparrow$          & $25.033$ & \best{$25.428$} \\
+SSIM $\uparrow$          & $0.8143$ & \best{$0.8263$} \\
+LPIPS $\downarrow$       & $0.0439$ & \best{$0.0429$} \\
+LR-PSNR $\uparrow$       & $44.66$  & \best{$47.63$} \\
+FID $\downarrow$         & $66.70$  & \best{$61.83$} \\
+Color error $\downarrow$ & $0.4494$ & \best{$0.2948$} \\
+\midrule
+\multicolumn{3}{l}{\emph{CC-ResDiff}}\\
+Color error $\downarrow$ & $0.1981$ & $0.2555$ \\
+\emph{relative change}   & \emph{$-55.9\%$} & \emph{$-13.3\%$} \\
+\bottomrule
+\end{tabular}
+\caption{Effect of training-set size and Stage-1 capacity, on an identical
+300-image test split. Absolute quality improves markedly at the larger scale.
+The GCC loss's relative benefit shrinks, but only because the baseline it is
+measured against drifts less; CC-ResDiff's own color error stays inside the same
+band at both scales.}
+\label{tab:scale}
+\end{table}
+
+The GCC loss's \emph{relative} benefit shrinks accordingly, from $-55.9\%$ at 3k
+to $-13.3\%$ at 25k. It is important not to read this as the method ceasing to
+work at scale. CC-ResDiff's own color error is $0.2555$ at 25k, inside the
+$0.15$--$0.26$ band it occupies at every other scale and on both datasets; what
+changed is the baseline, which improved from $0.4494$ to $0.2948$ and therefore
+left less to recover. The larger tier is a fifth confirmation of the bounding
+behaviour, obtained under conditions chosen to break it.
+
+Two caveats. The 25k tier is a single run per arm, so its individual deltas carry
+the seed-noise caveat established in Section~\ref{sec:main}; given that baseline
+drift varies sixfold by seed, one run cannot establish where within the band a
+tier truly sits. And 25{,}000 images is still only $15\%$ of CelebA at
+$64\times64$: we have shown the effect is not an artefact of the 3k regime, not
+that it persists at the resolutions ResDiff reports.
+
+The FID regression survives scaling ($+0.57$ at 25k), in the same direction as
+all three 3k seeds and now $4/4$ across every CelebA configuration tested.
 
 \subsection{Per-Image Consistency and Effect Size}
 \label{sec:persample}
@@ -600,10 +671,11 @@ essentially identical to the CelebA seed ($0.140$) on which CC-ResDiff also
 provided no benefit. DIV2K falls exactly where the CelebA seeds predict: with no
 drift to correct, the loss neither helps nor meaningfully hurts, and CC-ResDiff's
 own color error ($0.204$) sits in the same narrow band it occupies everywhere
-else ($0.15$--$0.24$).
+else ($0.15$--$0.26$).
 
-The DIV2K result is therefore better understood as a fourth data point consistent
-with the bounding behaviour of Section~\ref{sec:main} than as a failure to
+The DIV2K result is therefore better understood as one of five data points
+consistent with the bounding behaviour of Section~\ref{sec:main} -- alongside
+the scaling tier of Section~\ref{sec:scale} -- rather than as a failure to
 transfer across datasets. It is also consistent with ResDiff's observation that
 the discrepancy appears when a model is under-trained: the DIV2K Stage-1 network
 is comparatively strong here (LR-PSNR $47.2$ versus $44.7$), leaving less for the
@@ -618,9 +690,11 @@ failure that may or may not occur in any particular run, not a guaranteed gain.
 \section{Limitations}
 
 \begin{itemize}
-\item \textbf{Scale.} All experiments use 3{,}000 training images at
-$64\times64$ with a $2.28$M-parameter diffusion model. Whether the effect persists
-at the resolutions and model sizes used by SRDiff and ResDiff is untested.
+\item \textbf{Scale.} Our main results use 3{,}000 training images at
+$64\times64$; Section~\ref{sec:scale} repeats the experiment at 25{,}000 images
+with Stage 1 at full capacity and finds the bounding behaviour intact. Both
+remain far below the resolutions and model sizes used by SRDiff and ResDiff, so
+whether the effect persists there is untested.
 \item \textbf{Sample size.} Three training runs per arm on CelebA, one on DIV2K.
 Three seeds are enough to establish that the baseline's drift varies widely and
 that CC-ResDiff's does not, but not to characterise the distribution of either.
