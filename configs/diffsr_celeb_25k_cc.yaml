@@ -1,0 +1,5 @@
+base_config: ./diffsr_celeb_25k.yaml
+# Proposed arm: identical to diffsr_celeb_25k.yaml except for the GCC loss.
+use_color_loss: true
+lambda_color: 0.1
+color_pool_size: 8

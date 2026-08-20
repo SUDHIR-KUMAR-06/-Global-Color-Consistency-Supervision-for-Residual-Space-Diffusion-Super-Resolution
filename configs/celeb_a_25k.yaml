@@ -1,0 +1,9 @@
+base_config: ./celeb_a_small.yaml
+# Larger-data tier. Identical to celeb_a_small.yaml except for the training-set
+# size. The valid/test caps and the seed are deliberately unchanged, so
+# subsample() draws exactly the same 300 test images as the small tier and
+# results across the two tiers are directly comparable.
+binary_data_dir: data/binary/celeb_a_sr_25k
+max_train_imgs: 25000
+max_valid_imgs: 300
+max_test_imgs: 300

@@ -1,0 +1,21 @@
+base_config:
+  - ../sr_base.yaml
+  - ../celeb_a_25k.yaml
+trainer_cls: tasks.rrdb.RRDBCelebTask
+# Stage-1 capacity restored to the SRDiff default (32 feat / 8 blocks). The
+# small tier halved this; since the diffusion branch only repairs the residual,
+# a weak Stage 1 caps the whole pipeline.
+hidden_size: 32
+num_block: 8
+lr: 0.0002
+
+max_updates: 20000
+batch_size: 32
+val_check_interval: 1000
+num_ckpt_keep: 3
+
+early_stop: true
+early_stop_key: psnr
+early_stop_mode: max
+early_stop_patience: 5
+early_stop_min_delta: 0.01

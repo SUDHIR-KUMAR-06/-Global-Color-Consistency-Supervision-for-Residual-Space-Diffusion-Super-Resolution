@@ -1,0 +1,28 @@
+base_config:
+  - ./diffsr_base.yaml
+  - ./celeb_a_25k.yaml
+trainer_cls: tasks.srdiff_celeb.SRDiffCeleb
+
+# Baseline arm, larger-data tier. rrdb_num_feat/num_block MUST match
+# rrdb/celeb_a_pretrain_25k.yaml: the Unet builds its own RRDB to load that
+# checkpoint into, and its cond_proj width is derived from both values.
+hidden_size: 32
+unet_dim_mults: 1|2|2|4
+rrdb_num_feat: 32
+rrdb_num_block: 8
+rrdb_ckpt: 'checkpoints/rrdb_celebA_25k'
+
+batch_size: 16
+max_updates: 20000
+decay_steps: 8000
+val_check_interval: 1000
+num_ckpt_keep: 3
+amp: true
+
+early_stop: true
+early_stop_key: psnr
+early_stop_mode: max
+early_stop_patience: 5
+early_stop_min_delta: 0.01
+
+use_color_loss: false
