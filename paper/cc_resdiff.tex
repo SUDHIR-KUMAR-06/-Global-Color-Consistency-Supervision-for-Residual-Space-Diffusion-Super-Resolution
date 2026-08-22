@@ -119,28 +119,58 @@ color-consistency methods are unreliable.
 
 \section{Related Work}
 
-\paragraph{Diffusion-based SISR.}
-SR3~\cite{saharia2022image} adapts DDPM to SISR by conditioning on a bicubically
-upsampled LR image. SRDiff~\cite{li2022srdiff} introduces residual prediction,
-training the diffusion model on the difference between the ground truth and an
-RRDB prediction. ResDiff~\cite{shang2024resdiff} extends this with a
-frequency-domain information splitter, high-frequency-guided cross-attention, and
-FFT/DWT losses on the CNN, reporting faster convergence and better sample
-quality.
+\paragraph{Generative super-resolution.}
+Adversarial methods established generative SISR: SRGAN~\cite{ledig2017photo} and
+ESRGAN~\cite{wang2018esrgan} produce sharp textures but are unstable to train and
+prone to mode collapse. Normalizing-flow approaches such as
+SRFlow~\cite{lugmayr2020srflow} model the SR space explicitly at the cost of a
+large model footprint.
 
-\paragraph{Color consistency in image restoration.}
-Color shift is a known artefact in generative restoration. Classical remedies are
-post-hoc: histogram matching and Reinhard-style color transfer correct output
-statistics after generation. Such corrections are cheap but operate outside the
-model and cannot influence what it learns. We compare against this alternative
-directly (Section~\ref{sec:colortransfer}).
+\paragraph{Diffusion-based SISR.}
+Denoising diffusion probabilistic models~\cite{ho2020denoising}, with the
+sampling and schedule refinements of~\cite{song2021ddim,nichol2021improved},
+avoid both failure modes. SR3~\cite{saharia2022image} adapts DDPM to SISR by
+conditioning on a bicubically upsampled LR image.
+SRDiff~\cite{li2022srdiff} introduces residual prediction, training the diffusion
+model on the difference between the ground truth and an RRDB prediction rather
+than on the image itself, which accelerates convergence.
+ResDiff~\cite{shang2024resdiff} extends this with a frequency-domain information
+splitter, high-frequency-guided cross-attention and FFT/DWT losses on the CNN.
+The trajectory of this line of work is towards \emph{stronger high-frequency
+guidance}; the low-frequency content of the output is left to the CNN and to the
+residual formulation, and is never supervised directly. Our work addresses that
+gap, which ResDiff itself identifies as open.
+
+\paragraph{Color correction and color constancy.}
+Correcting the color of an image is a long-standing problem, but the established
+methods act either on the input or on the finished output. Reinhard et
+al.~\cite{reinhard2001color} match per-channel means and standard deviations in a
+decorrelated color space; Piti\'e et al.~\cite{pitie2005ndim} generalise this to
+full $N$-dimensional distribution transfer; histogram matching is the classical
+non-parametric equivalent. Computational color constancy instead estimates and
+removes an illuminant~\cite{barron2015convolutional}, including for images that
+were already incorrectly white-balanced~\cite{afifi2019color}. All of these are
+corrective: they require a reference or an illuminant estimate at test time, and
+cannot influence what the generative model learns. Section~\ref{sec:colortransfer}
+shows this distinction is not academic---a post-hoc correction is bounded below by
+the accuracy of the reference available at inference, and the learned loss
+operates below that bound.
 
 \paragraph{Loss weighting in diffusion models.}
-Reweighting the diffusion objective across timesteps is well studied for the
-primary loss. Our analysis shows that an \emph{auxiliary} loss defined on the
-reconstructed $x_0$ inherits an extreme implicit timestep weighting from the
-$1/\sqrt{\bar\alpha_t}$ factor in that reconstruction, an effect that appears not
-to have been noted previously and which we exploit as a control.
+How the diffusion objective is weighted across timesteps is known to matter.
+Ho et al.~\cite{ho2020denoising} note that the simplified $\epsilon$-prediction
+loss corresponds to a reweighted variational bound; Nichol and
+Dhariwal~\cite{nichol2021improved} revisit the schedule and objective;
+Choi et al.~\cite{choi2022perception} reweight to prioritise perceptually
+significant noise levels; Salimans and Ho~\cite{salimans2022progressive}
+introduce the $v$-parameterisation with its associated weighting; and Min-SNR
+weighting~\cite{hang2023efficient} treats the problem as multi-task balancing
+across timesteps. This literature concerns the \emph{primary} objective. We show
+that an \emph{auxiliary} loss defined on the reconstructed $x_0$ inherits an
+implicit and extreme timestep weighting from the $1/\sqrt{\bar\alpha_t}$ factor
+in that reconstruction---spanning five orders of magnitude here---whether or not
+its designer intends it, and that in our case this implicit weighting is
+responsible for most of the term's effect.
 
 \section{Method}
 
@@ -251,7 +281,7 @@ Section~\ref{sec:snr} reports what removing it does.
 \subsection{Setup}
 
 We evaluate in a deliberately compute-constrained regime, matching the setting in
-which ResDiff reports color discrepancy to be most visible. CelebA is subsampled
+which ResDiff reports color discrepancy to be most visible. CelebA~\cite{liu2015faceattributes} is subsampled
 to 3{,}000 training / 300 validation / 300 test images at $16\times16 \to
 64\times64$ ($4\times$). Stage 1 is an RRDB with hidden size 16 and 4 blocks;
 Stage 2 is a UNet with hidden size 32 and $2.28$M parameters, $T=100$ timesteps,
@@ -284,7 +314,7 @@ data, schedule, seed, initialisation and Stage-1 checkpoint, and differ only in
 whether the GCC term is present, so any difference between them is attributable
 to that term. The claims in this paper are of that form throughout.
 
-\paragraph{Metrics.} PSNR, SSIM, LPIPS~\cite{zhang2018unreasonable} and
+\paragraph{Metrics.} PSNR, SSIM~\cite{wang2004image}, LPIPS~\cite{zhang2018unreasonable} and
 FID~\cite{heusel2017gans}, plus \textbf{color error}: the
 mean absolute difference between per-channel RGB means of the generated and
 ground-truth images, averaged over the test set. We also report LR-PSNR
@@ -694,7 +724,7 @@ is introduced.
 
 \subsection{DIV2K: The Same Behaviour, Not a Failure to Generalise}
 
-We repeated the experiment on DIV2K at matched scale (Table~\ref{tab:div2k}).
+We repeated the experiment on DIV2K~\cite{agustsson2017ntire} at matched scale (Table~\ref{tab:div2k}).
 Taken alone, the result reads as a failure to generalise: every sign flips
 relative to the CelebA means.
 
@@ -794,7 +824,13 @@ Predicting in advance which configurations drift, and testing whether the benefi
 grows in the more severely under-trained regime ResDiff describes, are the
 natural next steps.
 
-\begin{thebibliography}{9}
+\begin{thebibliography}{99}
+
+% ---- VERIFY EVERY ENTRY BEFORE SUBMISSION ----
+% These were drafted from memory. Titles and authors are believed correct;
+% venues, years and page numbers must be checked against the actual papers.
+% Entries marked [CHECK] are the ones to verify most carefully.
+
 \bibitem{shang2024resdiff}
 S.~Shang, Z.~Shan, G.~Liu, L.~Wang, X.~Wang, Z.~Zhang, and J.~Zhang.
 \newblock ResDiff: Combining CNN and Diffusion Model for Image Super-Resolution.
@@ -808,17 +844,76 @@ H.~Li, Y.~Yang, M.~Chang, S.~Chen, H.~Feng, Z.~Xu, Q.~Li, and Y.~Chen.
 \bibitem{saharia2022image}
 C.~Saharia, J.~Ho, W.~Chan, T.~Salimans, D.~J. Fleet, and M.~Norouzi.
 \newblock Image Super-Resolution via Iterative Refinement.
-\newblock {\em IEEE TPAMI}, 2022.
+\newblock {\em IEEE TPAMI}, 45(4):4713--4726, 2023. % [CHECK] volume/year
 
 \bibitem{ho2020denoising}
 J.~Ho, A.~Jain, and P.~Abbeel.
 \newblock Denoising Diffusion Probabilistic Models.
 \newblock In {\em NeurIPS}, 2020.
 
+\bibitem{song2021ddim}
+J.~Song, C.~Meng, and S.~Ermon.
+\newblock Denoising Diffusion Implicit Models.
+\newblock In {\em ICLR}, 2021.
+
+\bibitem{nichol2021improved}
+A.~Nichol and P.~Dhariwal.
+\newblock Improved Denoising Diffusion Probabilistic Models.
+\newblock In {\em ICML}, 2021.
+
+\bibitem{choi2022perception}
+J.~Choi, J.~Lee, C.~Shin, S.~Kim, H.~Kim, and S.~Yoon.
+\newblock Perception Prioritized Training of Diffusion Models.
+\newblock In {\em CVPR}, 2022. % [CHECK] author list
+
+\bibitem{salimans2022progressive}
+T.~Salimans and J.~Ho.
+\newblock Progressive Distillation for Fast Sampling of Diffusion Models.
+\newblock In {\em ICLR}, 2022.
+
+\bibitem{hang2023efficient}
+T.~Hang, S.~Gu, C.~Li, J.~Bao, D.~Chen, H.~Hu, X.~Geng, and B.~Guo.
+\newblock Efficient Diffusion Training via Min-SNR Weighting Strategy.
+\newblock In {\em ICCV}, 2023. % [CHECK] author list
+
+\bibitem{ledig2017photo}
+C.~Ledig, L.~Theis, F.~Husz\'ar, J.~Caballero, A.~Cunningham, A.~Acosta,
+A.~Aitken, A.~Tejani, J.~Totz, Z.~Wang, and W.~Shi.
+\newblock Photo-Realistic Single Image Super-Resolution Using a Generative
+Adversarial Network.
+\newblock In {\em CVPR}, 2017.
+
 \bibitem{wang2018esrgan}
 X.~Wang, K.~Yu, S.~Wu, J.~Gu, Y.~Liu, C.~Dong, Y.~Qiao, and C.~C. Loy.
 \newblock ESRGAN: Enhanced Super-Resolution Generative Adversarial Networks.
 \newblock In {\em ECCV Workshops}, 2018.
+
+\bibitem{lugmayr2020srflow}
+A.~Lugmayr, M.~Danelljan, L.~Van~Gool, and R.~Timofte.
+\newblock SRFlow: Learning the Super-Resolution Space with Normalizing Flow.
+\newblock In {\em ECCV}, 2020.
+
+\bibitem{reinhard2001color}
+E.~Reinhard, M.~Adhikhmin, B.~Gooch, and P.~Shirley.
+\newblock Color Transfer between Images.
+\newblock {\em IEEE Computer Graphics and Applications}, 21(5):34--41, 2001.
+
+\bibitem{pitie2005ndim}
+F.~Piti\'e, A.~C. Kokaram, and R.~Dahyot.
+\newblock N-Dimensional Probability Density Function Transfer and its
+Application to Colour Transfer.
+\newblock In {\em ICCV}, 2005.
+
+\bibitem{barron2015convolutional}
+J.~T. Barron.
+\newblock Convolutional Color Constancy.
+\newblock In {\em ICCV}, 2015.
+
+\bibitem{afifi2019color}
+M.~Afifi, B.~Price, S.~Cohen, and M.~S. Brown.
+\newblock When Color Constancy Goes Wrong: Correcting Improperly
+White-Balanced Images.
+\newblock In {\em CVPR}, 2019.
 
 \bibitem{heusel2017gans}
 M.~Heusel, H.~Ramsauer, T.~Unterthiner, B.~Nessler, and S.~Hochreiter.
@@ -830,6 +925,24 @@ Equilibrium.
 R.~Zhang, P.~Isola, A.~A. Efros, E.~Shechtman, and O.~Wang.
 \newblock The Unreasonable Effectiveness of Deep Features as a Perceptual Metric.
 \newblock In {\em CVPR}, 2018.
+
+\bibitem{wang2004image}
+Z.~Wang, A.~C. Bovik, H.~R. Sheikh, and E.~P. Simoncelli.
+\newblock Image Quality Assessment: From Error Visibility to Structural
+Similarity.
+\newblock {\em IEEE TIP}, 13(4):600--612, 2004.
+
+\bibitem{liu2015faceattributes}
+Z.~Liu, P.~Luo, X.~Wang, and X.~Tang.
+\newblock Deep Learning Face Attributes in the Wild.
+\newblock In {\em ICCV}, 2015.
+
+\bibitem{agustsson2017ntire}
+E.~Agustsson and R.~Timofte.
+\newblock NTIRE 2017 Challenge on Single Image Super-Resolution: Dataset and
+Study.
+\newblock In {\em CVPR Workshops}, 2017.
+
 \end{thebibliography}
 
 \end{document}
