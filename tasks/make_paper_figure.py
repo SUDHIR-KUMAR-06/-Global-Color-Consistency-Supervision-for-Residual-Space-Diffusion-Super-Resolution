@@ -41,6 +41,11 @@ def main():
     ap.add_argument('--mode', default='best', choices=['best', 'worst', 'random'],
                     help="best = largest CC advantage; worst = largest CC "
                          "disadvantage (include one for an honest figure)")
+    ap.add_argument('--min_std', type=float, default=0.0,
+                    help='skip ground-truth tiles flatter than this pixel std. '
+                         'A content criterion, evaluated on the ground truth only, '
+                         'so it cannot favour either arm; use it to avoid filling '
+                         'a figure with empty sky.')
     args = ap.parse_args()
 
     bd, cd = latest(args.baseline), latest(args.cc)
@@ -55,6 +60,8 @@ def main():
         if not os.path.exists(cp):
             continue
         sc = np.array(Image.open(cp).convert('RGB')).astype(np.float64)
+        if args.min_std and hr.std() < args.min_std:
+            continue
         eb, ec = color_err(sb, hr), color_err(sc, hr)
         rows.append((n, eb, ec, eb - ec))
 

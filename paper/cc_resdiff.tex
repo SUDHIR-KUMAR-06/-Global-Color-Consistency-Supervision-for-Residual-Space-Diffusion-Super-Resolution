@@ -751,7 +751,8 @@ Table~\ref{tab:main} except FID.}
 Read against Table~\ref{tab:perseed}, however, it is not a separate phenomenon.
 The DIV2K baseline's color error is $0.165$---squarely in the low-drift regime,
 essentially identical to the CelebA seed ($0.140$) on which CC-ResDiff also
-provided no benefit. DIV2K falls exactly where the CelebA seeds predict: with no
+provided no benefit; Figure~\ref{fig:qual_div2k} shows the two arms are
+visually indistinguishable here. DIV2K falls exactly where the CelebA seeds predict: with no
 drift to correct, the loss neither helps nor meaningfully hurts, and CC-ResDiff's
 own color error ($0.204$) sits in the same narrow band it occupies everywhere
 else ($0.15$--$0.26$).
@@ -763,6 +764,22 @@ transfer across datasets. It is also consistent with ResDiff's observation that
 the discrepancy appears when a model is under-trained: the DIV2K Stage-1 network
 is comparatively strong here (LR-PSNR $47.2$ versus $44.7$), leaving less for the
 diffusion branch to get wrong.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{qualitative_div2k.png}
+\caption{DIV2K $4\times$, $256\times256$ tiles. Columns as in
+Figure~\ref{fig:qual}. Unlike that figure, tiles here are drawn \emph{at random}
+rather than by largest difference, because CC-ResDiff does not win on this
+dataset and selecting by advantage would misrepresent it; the only filter is a
+minimum ground-truth pixel standard deviation, applied to exclude featureless sky
+and evaluated on the ground truth alone so it cannot favour either arm. The two
+reconstructions are visually indistinguishable, which is the finding: with a
+baseline that does not drift, the loss has nothing to correct. Over the full test
+split CC-ResDiff has lower color error on $171/512$ tiles ($33.4\%$), against
+$298/300$ ($99.3\%$) on CelebA.}
+\label{fig:qual_div2k}
+\end{figure}
 
 We nevertheless report it as a limiting case, because it defines the method's
 scope operationally. A practitioner should expect GCC supervision to pay for
