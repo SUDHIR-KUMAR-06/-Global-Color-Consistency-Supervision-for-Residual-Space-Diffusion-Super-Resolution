@@ -199,7 +199,7 @@ Eq.~\ref{eq:ddpm} references the absolute color of the reconstruction.
 \subsection{Global Color-Consistency Loss}
 
 Figure~
-Figure~\ref{fig:algo} states the complete modification. At each training step we
+The complete modification is given in Fig.~\ref{fig:algo}. At each training step we
 recover the model's implied clean residual using the standard closed form,
 \begin{equation}
 \hat r_0 = \frac{r_t - \sqrt{1-\bar\alpha_t}\;\epsilon_\theta(r_t,t,c)}{\sqrt{\bar\alpha_t}},
@@ -397,7 +397,7 @@ DIV2K                 & 0.1650 & 0.2036 & $+23.4\%$ \\
 \end{tabular}
 \caption{Per-run color error over five paired runs spanning two datasets and two
 data scales. The baseline ranges over $0.14$--$0.82$; CC-ResDiff falls within
-$0.15$--$0.26$ in every case, a $6.2	imes$ narrower range. The benefit on a given
+$0.15$--$0.26$ in every case, a $6.2\times$ narrower range. The benefit on a given
 run is therefore governed by how far that run's baseline sits outside
 CC-ResDiff's band.}
 \label{tab:perseed}
@@ -415,8 +415,9 @@ by how badly that run happened to drift.
 We state the claim accordingly: \textbf{the GCC loss does not uniformly reduce
 color error so much as bound it}. Where the baseline drifts badly the loss
 recovers most of the gap; where the baseline is already accurate it neither helps
-nor meaningfully hurts. The practical value is a guarantee rather than an average
-improvement---the failure mode is prevented, not merely made rarer.
+nor meaningfully hurts. The practical value is improved robustness rather than an average
+improvement: in our experiments the failure mode is consistently avoided, though
+five paired runs establish a stabilising effect rather than a formal guarantee.
 
 We deliberately avoid one tempting statistic. The correlation between a run's
 baseline color error and the improvement CC-ResDiff delivers on it is $r=0.997$
@@ -785,7 +786,7 @@ We nevertheless report it as a limiting case, because it defines the method's
 scope operationally. A practitioner should expect GCC supervision to pay for
 itself only where the uncorrected model actually drifts---and, given that whether
 it drifts varies by seed, the argument for applying it is insurance against a
-failure that may or may not occur in any particular run, not a guaranteed gain.
+failure that may or may not occur in any particular run, not an assured gain.
 
 \section{Limitations}
 

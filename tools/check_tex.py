@@ -41,6 +41,22 @@ bad = [i + 1 for i, l in enumerate(s.split('\n'))
        and l.rstrip().endswith(B) and not l.rstrip().endswith(B + B)]
 print('bad row endings :', bad or 'none')
 
-ctrl = [i + 1 for i, l in enumerate(s.split('\n'))
-        if any(ord(c) < 32 and c != '\t' for c in l)]
+# Tabs are NOT benign here: a heredoc eating the backslash of a command
+# such as 	imes leaves a literal tab followed by "imes", which renders as
+# garbage and is easy to miss by eye.
+ctrl = [i + 1 for i, l in enumerate(s.split(chr(10))) if any(ord(c) < 32 for c in l)]
 print('control chars   :', ctrl or 'none')
+
+STUBS = ['imes', 'ambda', 'lpha', 'psilon', 'qrt', 'rightarrow']
+FULL  = ['times', 'lambda', 'alpha', 'epsilon', 'sqrt', 'rightarrow']
+mangled = []
+for i2, l in enumerate(s.split(chr(10))):
+    for stub, full in zip(STUBS, FULL):
+        for m in re.finditer(re.escape(stub), l):
+            prev = l[m.start() - 1] if m.start() else ' '
+            # a genuine command reads 	imes; a mangled one lost its backslash,
+            # leaving the stub preceded by whitespace or a tab. "Timestep" is
+            # preceded by a letter and is not a defect.
+            if not prev.isalpha() and prev != B:
+                mangled.append((i2 + 1, stub))
+print('possibly mangled:', mangled or 'none')
