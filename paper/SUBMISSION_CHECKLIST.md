@@ -22,6 +22,27 @@
   reimplemented, and that absolute numbers are not comparable with published
   SRDiff/ResDiff/SR3 results.
 
+## Second review round -- applied
+
+- Equations rewritten for robustness: the x0 reconstruction now uses `rac`
+  rather than an inline `ig/`, and the GCC loss and total objective are two
+  separate numbered displays instead of one crowded line. (The reported
+  "formatting artifacts" were most likely PDF text-extraction noise -- math
+  rarely survives extraction -- but the cleaner form is worth having regardless.)
+- Figure 1 moved from the end of the paper into Section 4, immediately after the
+  main results, with `[htbp]` so it places inline rather than floating past the
+  references.
+- Softened "whether a residual diffusion model drifts in color is substantially a
+  matter of chance" to "under the evaluated configuration, whether substantial
+  color drift occurs is strongly influenced by the random training seed".
+- "five paired runs" -> "five paired experimental configurations", and the text
+  now states explicitly that the three-seed CelebA experiment is the only
+  replicated evidence, with the 25k and DIV2K tiers being single runs. They are
+  no longer presented as five equally strong confirmations.
+
+Abstract is 254 words. Still verify the compiled page count and the equation
+rendering visually -- neither is checkable without a LaTeX toolchain here.
+
 ## MUST DO BEFORE SUBMITTING -- I could not do these here
 
 1. **Convert to .doc/.docx.** The conference requires it. Neither pandoc nor a

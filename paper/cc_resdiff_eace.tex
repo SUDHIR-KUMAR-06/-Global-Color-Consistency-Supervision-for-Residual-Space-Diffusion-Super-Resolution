@@ -47,7 +47,7 @@ baseline rather than the loss: across three seeds of an otherwise identical
 configuration, baseline color error varies over $0.14$--$0.82$, so single-run
 comparisons of color-consistency methods are unreliable.
 Against that variability the GCC loss acts as a stabiliser, confining color error
-to $0.15$--$0.26$ across five paired runs spanning two datasets and an $8\times$
+to $0.15$--$0.26$ across five paired experimental configurations spanning two datasets and an $8\times$
 range of training-set size, with $6.5\times$ lower standard deviation. It bounds color drift where it occurs rather than
 improving color uniformly, recovering most of the gap on runs that drift and
 remaining neutral on those that do not---which also explains a DIV2K result that
@@ -130,23 +130,27 @@ absolute color of the reconstruction.
 
 We recover the implied clean residual through the standard closed form,
 \begin{equation}
-\hat r_0 = \big(r_t - \sqrt{1-\bar\alpha_t}\,\epsilon_\theta(r_t,t,c)\big)\big/\sqrt{\bar\alpha_t},
+\hat r_0 = \frac{r_t - \sqrt{1-\bar\alpha_t}\,\epsilon_\theta(r_t,t,c)}{\sqrt{\bar\alpha_t}},
 \label{eq:x0}
 \end{equation}
 clamp it to $[-1,1]$, map it back to image space as $\hat x_{HR} = \hat r_0/s + x_{up}$,
 and compare pooled color statistics:
 \begin{equation}
-\mathcal{L}_{\text{GCC}} = \big\|\mathcal{P}_k(\hat x_{HR}) - \mathcal{P}_k(x_{HR})\big\|_2^2,
-\qquad
-\mathcal{L} = \mathcal{L}_{\text{DDPM}} + \lambda\,\mathcal{L}_{\text{GCC}},
+\mathcal{L}_{\text{GCC}} = \big\|\mathcal{P}_k(\hat x_{HR}) - \mathcal{P}_k(x_{HR})\big\|_2^2 ,
 \label{eq:gcc}
+\end{equation}
+and add it to the primary objective with a single weight $\lambda$:
+\begin{equation}
+\mathcal{L} = \mathcal{L}_{\text{DDPM}} + \lambda\,\mathcal{L}_{\text{GCC}} .
+\label{eq:total}
 \end{equation}
 with $\mathcal{P}_k$ adaptive average pooling to a $k \times k$ grid. Pooling is
 what makes Eq.~\ref{eq:gcc} complementary rather than redundant:
 texture and edges, retaining only the spatial color balance that
 Eq.~\ref{eq:ddpm} leaves unconstrained.
 
-Two implementation details are load-bearing. Eq.~\ref{eq:x0} must be evaluated in
+Eq.~\ref{eq:total} is the complete objective; the remainder of the training
+step is unchanged. Two implementation details are load-bearing. Eq.~\ref{eq:x0} must be evaluated in
 fp32: under a cosine schedule $\bar\alpha_t$ reaches $2.4\times10^{-7}$ at
 $t = T-1$, so the reconstruction amplifies by ${\sim}2000\times$ and overflows
 fp16 under mixed precision. And the clamp cannot be omitted---unclamped we
@@ -190,8 +194,8 @@ $0.0005$, LR-PSNR $0.009$, color error $0.0022$, FID $0.15$.
 Table~\ref{tab:perrun} is the paper's central result, and it concerns the
 baseline. Under configurations differing only in random seed, baseline color error
 ranges from $0.14$ to $0.82$---a sixfold spread, orders of magnitude beyond the
-$0.0022$ evaluation noise floor. Whether a residual diffusion model drifts in
-color is therefore substantially a matter of chance.
+$0.0022$ evaluation noise floor. Under the evaluated configuration, whether substantial color drift
+occurs is therefore strongly influenced by the random training seed.
 
 This carries a methodological consequence independent of our loss: a single-run
 comparison of any color-consistency method can overstate or understate its effect
@@ -214,18 +218,19 @@ DIV2K               & 0.1650 & 0.2036 & $+23.4\%$ \\
 \emph{range}           & \emph{0.684}  & \emph{0.109}  & \\
 \bottomrule
 \end{tabular}
-\caption{Color error across five paired runs spanning two datasets and an
+\caption{Color error across five paired experimental configurations spanning two datasets and an
 $8\times$ range of training-set size. The baseline spans $0.14$--$0.82$;
 CC-ResDiff stays within $0.15$--$0.26$.}
 \label{tab:perrun}
 \end{table}
 
 Against that variability the GCC loss acts as a stabiliser: its color error falls
-within $0.15$--$0.26$ in every run, with a $6.5\times$ smaller standard deviation
+within $0.15$--$0.26$ in every configuration, with a $6.5\times$ smaller standard deviation
 and a $6.2\times$ narrower range. We describe this as \emph{bounding} color drift
-rather than reducing it, and are deliberate about the strength of the claim: five
-paired runs establish a consistent stabilising effect in our experiments, not a
-formal guarantee. The benefit on any given run is governed by how far its baseline
+rather than reducing it, and are deliberate about the strength of the claim: the three-seed CelebA experiment is the only
+replicated evidence here---the 25k and DIV2K tiers are single runs---so these five
+configurations establish a consistent stabilising effect in our experiments
+rather than a formal guarantee. The benefit on any given run is governed by how far its baseline
 sits outside CC-ResDiff's band, which is why one mechanism produces both the
 $-70.6\%$ run and the DIV2K increase.
 
@@ -269,6 +274,19 @@ the larger-data tier---by $+2.73$ on average. Section~\ref{sec:grad} reports an
 experiment that refutes our own explanation for it, so the cause remains open. A
 practitioner should adopt GCC as a targeted mechanism for controlling
 seed-dependent color drift, not as a general improvement to perceptual quality.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.82\linewidth]{qualitative.png}
+\caption{CelebA $4\times$: LR input, bicubic, baseline, CC-ResDiff, ground truth.
+Rows are the test images with the largest color-error difference, a selection rule
+chosen to display the phenomenon under discussion; per-image color error
+$\Delta c$ is printed beneath each result. Differences are measurable but visually
+subtle: color error is in $0$--$255$ units, so $0.82 \to 0.24$ is a sub-one-level
+shift---far above the $0.0022$ measurement noise and consistent across $298/300$
+images, yet near the limit of perceptibility.}
+\label{fig:qual}
+\end{figure}
 
 \subsection{Post-hoc Color Correction is Insufficient}
 \label{sec:ct}
@@ -405,19 +423,6 @@ recover, and CC-ResDiff's own value again lands in its usual range. Per tile,
 CC-ResDiff has lower color error on $171/512$ DIV2K tiles ($33.4\%$) against
 $298/300$ CelebA images ($99.3\%$); on DIV2K the two arms are visually indistinguishable.
 Figure~\ref{fig:qual} shows CelebA examples, where the effect is present.
-
-\begin{figure}[t]
-\centering
-\includegraphics[width=0.82\linewidth]{qualitative.png}
-\caption{CelebA $4\times$: LR input, bicubic, baseline, CC-ResDiff, ground truth.
-Rows are the test images with the largest color-error difference, a selection rule
-chosen to display the phenomenon under discussion; per-image color error
-$\Delta c$ is printed beneath each result. Differences are measurable but visually
-subtle: color error is in $0$--$255$ units, so $0.82 \to 0.24$ is a sub-one-level
-shift---far above the $0.0022$ measurement noise and consistent across $298/300$
-images, yet near the limit of perceptibility.}
-\label{fig:qual}
-\end{figure}
 
 \section{Limitations}
 
