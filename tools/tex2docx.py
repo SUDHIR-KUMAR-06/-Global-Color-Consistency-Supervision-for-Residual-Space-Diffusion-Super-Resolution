@@ -83,16 +83,26 @@ ACCENTS = {"'": {'e': '\u00e9', 'a': '\u00e1', 'o': '\u00f3', 'i': '\u00ed',
 # ==========================================================================
 # inline renderer:  LaTeX fragment -> list of formatted runs
 # ==========================================================================
+# Characters Times New Roman does not contain. Word would silently substitute
+# some other font for these, which is exactly the failure the Springer
+# instructions warn about ("special characters ... can cause these characters to
+# disappear"), so name the substitute ourselves. tools/check_docx.py verifies
+# the coverage, so anything new shows up as a failure rather than as a box.
+FALLBACK_FONT = {'∈': 'Cambria Math'}      # element-of
+
+
 class Run:
-    __slots__ = ('t', 'i', 'b', 'sub', 'sup', 'tt', 'style')
+    __slots__ = ('t', 'i', 'b', 'sub', 'sup', 'tt', 'style', 'font')
 
     def __init__(self, t, i=False, b=False, sub=False, sup=False, tt=False,
-                 style=None):
+                 style=None, font=None):
         self.t, self.i, self.b = t, i, b
         self.sub, self.sup, self.tt, self.style = sub, sup, tt, style
+        self.font = font
 
     def key(self):
-        return (self.i, self.b, self.sub, self.sup, self.tt, self.style)
+        return (self.i, self.b, self.sub, self.sup, self.tt, self.style,
+                self.font)
 
 
 class Inline:
@@ -123,7 +133,8 @@ class Inline:
                 italic = True
             self.out.append(Run(ch, italic, st.get('b', False),
                                 st.get('sub', False), st.get('sup', False),
-                                st.get('tt', False), st.get('style')))
+                                st.get('tt', False), st.get('style'),
+                                FALLBACK_FONT.get(ch)))
 
     def _merge(self):
         merged = []
@@ -413,7 +424,12 @@ def build_equations():
 # ==========================================================================
 # WordprocessingML emitters
 # ==========================================================================
-def runs_xml(runs):
+def runs_xml(runs, unbold=False):
+    """unbold: stamp an explicit b=0 on every non-bold run. The template's
+    'heading 3' paragraph style carries a stray <w:b/> inside its <w:pPr>, which
+    is not schema-valid there and which Word should ignore -- but the template's
+    own macro defensively un-bolds the body text of a run-in heading, so do the
+    same rather than bet on how a Word version we cannot test parses it."""
     out = []
     for r in runs:
         rpr = []
@@ -421,8 +437,12 @@ def runs_xml(runs):
             rpr.append('<w:rStyle w:val="%s"/>' % r.style)
         if r.tt:
             rpr.append('<w:rFonts w:ascii="Courier New" w:hAnsi="Courier New"/>')
+        elif r.font:
+            rpr.append('<w:rFonts w:ascii="%s" w:hAnsi="%s"/>' % (r.font, r.font))
         if r.b:
             rpr.append('<w:b/>')
+        elif unbold:
+            rpr.append('<w:b w:val="0"/>')
         if r.i:
             rpr.append('<w:i/>')
         if r.sub:
@@ -859,12 +879,13 @@ def build(tex_path, template, out_path):
             fresh = True
         else:
             if out and isinstance(out[-1], tuple) and out[-1][0] == 'RUNIN':
-                head = out.pop()[1]
-                out.append(para(
-                    'heading 3',
-                    '<w:r><w:rPr><w:rStyle w:val="heading3"/></w:rPr>'
-                    '<w:t xml:space="preserve">%s </w:t></w:r>%s'
-                    % (xesc(head.rstrip()), runs_xml(inline.render(val)))))
+                head = inline.render(out.pop()[1].rstrip())
+                for r in head:
+                    r.style, r.b = 'heading3', True
+                head.append(Run(' ', b=True, style='heading3'))
+                out.append(para('heading 3',
+                                runs_xml(head)
+                                + runs_xml(inline.render(val), unbold=True)))
             else:
                 out.append(para('p1a' if fresh else 'Normal',
                                 runs_xml(inline.render(val))))

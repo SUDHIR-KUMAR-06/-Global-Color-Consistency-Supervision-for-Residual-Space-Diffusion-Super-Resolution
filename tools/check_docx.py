@@ -133,6 +133,57 @@ def estimate_pages(z, doc):
     return total / height_pt, total
 
 
+def check_glyphs(doc, problems):
+    """Does the font each run actually asks for contain the characters in it?
+
+    Springer's instructions warn that special characters can vanish when a
+    document is reformatted. The mechanism is font substitution: Word silently
+    picks some other font for a glyph the requested one lacks. So verify every
+    non-ASCII character against the font its own run names.
+    """
+    try:
+        from fontTools.ttLib import TTFont
+    except ImportError:
+        print('  (glyph check skipped: pip install fonttools)')
+        return
+    # cambria.ttc holds two faces: 0 is Cambria, 1 is Cambria Math.
+    paths = {'Times New Roman': (r'C:\Windows\Fonts\times.ttf', 0),
+             'Cambria Math': (r'C:\Windows\Fonts\cambria.ttc', 1),
+             'Courier New': (r'C:\Windows\Fonts\cour.ttf', 0)}
+    cmaps = {}
+    for name, (path, idx) in paths.items():
+        if not os.path.exists(path):
+            continue
+        f = TTFont(path, fontNumber=idx)
+        cmaps[name] = set().union(*(t.cmap for t in f['cmap'].tables))
+
+    checked = 0
+    for r in doc.iter(W + 'r'):
+        fonts = r.findall('./' + W + 'rPr/' + W + 'rFonts')
+        name = fonts[0].get(W + 'ascii') if fonts else 'Times New Roman'
+        text = ''.join(t.text or '' for t in r.findall(W + 't'))
+        cmap = cmaps.get(name)
+        if not cmap:
+            continue
+        for ch in set(text):
+            if ord(ch) > 127 and ord(ch) not in cmap:
+                fail(problems, 'U+%04X %r is not in %s -- Word will substitute '
+                     'a font for it; add it to FALLBACK_FONT in tex2docx.py'
+                     % (ord(ch), ch, name))
+            checked += 1
+    # math runs are Cambria Math by construction
+    math_cmap = cmaps.get('Cambria Math')
+    if math_cmap:
+        for t in doc.iter(M + 't'):
+            for ch in set(t.text or ''):
+                if ord(ch) > 127 and ord(ch) not in math_cmap:
+                    fail(problems, 'U+%04X %r is not in Cambria Math'
+                         % (ord(ch), ch))
+                checked += 1
+    print('  glyph coverage: checked %d characters against %s'
+          % (checked, ', '.join(sorted(cmaps))))
+
+
 def fail(problems, msg):
     problems.append(msg)
 
@@ -245,6 +296,7 @@ def main():
               'for the cut order' % (pages - 10))
     print('  equations carry OMML: %s'
           % ('yes' if any(m for _, _, m in eqs) else 'NO -- math is missing'))
+    check_glyphs(doc, problems)
 
     if problems:
         print('\nPROBLEMS (%d):' % len(problems))
