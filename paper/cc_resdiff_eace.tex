@@ -38,7 +38,10 @@
 %     fits. \doublespacing below is commented out so both can be measured.
 % =====================================================================
 \documentclass[10pt]{article}
-\usepackage[margin=1in]{geometry}
+% Springer's page geometry, read off the template's own sectPr: A4 with a
+% 12.2 x 19.3 cm text block. Without this the LaTeX PDF paginates differently
+% from the Word file and is useless as a proof of length.
+\usepackage[a4paper,textwidth=12.2cm,textheight=19.3cm,top=5.2cm,left=4.4cm]{geometry}
 \usepackage{times}          % Times New Roman, per the call for papers
 \usepackage{setspace}
 % \doublespacing            % uncomment to measure against the double-spaced rule
@@ -499,25 +502,28 @@ the natural next steps.
 
 \begin{thebibliography}{99}
 \small
-% VERIFY EVERY ENTRY -- drafted from memory; venues, years and pages unchecked.
-\bibitem{shang2024resdiff} S.~Shang et al. ResDiff: Combining CNN and Diffusion Model for Image Super-Resolution. {\em AAAI}, 2024.
-\bibitem{li2022srdiff} H.~Li et al. SRDiff: Single Image Super-Resolution with Diffusion Probabilistic Models. {\em Neurocomputing}, 479:47--59, 2022.
-\bibitem{saharia2022image} C.~Saharia et al. Image Super-Resolution via Iterative Refinement. {\em IEEE TPAMI}, 2023.
-\bibitem{ho2020denoising} J.~Ho, A.~Jain and P.~Abbeel. Denoising Diffusion Probabilistic Models. {\em NeurIPS}, 2020.
-\bibitem{nichol2021improved} A.~Nichol and P.~Dhariwal. Improved Denoising Diffusion Probabilistic Models. {\em ICML}, 2021.
-\bibitem{choi2022perception} J.~Choi et al. Perception Prioritized Training of Diffusion Models. {\em CVPR}, 2022.
-\bibitem{hang2023efficient} T.~Hang et al. Efficient Diffusion Training via Min-SNR Weighting Strategy. {\em ICCV}, 2023.
-\bibitem{ledig2017photo} C.~Ledig et al. Photo-Realistic Single Image Super-Resolution Using a Generative Adversarial Network. {\em CVPR}, 2017.
-\bibitem{wang2018esrgan} X.~Wang et al. ESRGAN: Enhanced Super-Resolution Generative Adversarial Networks. {\em ECCV Workshops}, 2018.
-\bibitem{reinhard2001color} E.~Reinhard et al. Color Transfer between Images. {\em IEEE Computer Graphics and Applications}, 21(5):34--41, 2001.
-\bibitem{pitie2005ndim} F.~Piti\'e et al. N-Dimensional Probability Density Function Transfer and its Application to Colour Transfer. {\em ICCV}, 2005.
-\bibitem{barron2015convolutional} J.~T.~Barron. Convolutional Color Constancy. {\em ICCV}, 2015.
-\bibitem{afifi2019color} M.~Afifi et al. When Color Constancy Goes Wrong: Correcting Improperly White-Balanced Images. {\em CVPR}, 2019.
-\bibitem{heusel2017gans} M.~Heusel et al. GANs Trained by a Two Time-Scale Update Rule Converge to a Local Nash Equilibrium. {\em NeurIPS}, 2017.
-\bibitem{zhang2018unreasonable} R.~Zhang et al. The Unreasonable Effectiveness of Deep Features as a Perceptual Metric. {\em CVPR}, 2018.
-\bibitem{wang2004image} Z.~Wang et al. Image Quality Assessment: From Error Visibility to Structural Similarity. {\em IEEE TIP}, 13(4):600--612, 2004.
-\bibitem{liu2015faceattributes} Z.~Liu et al. Deep Learning Face Attributes in the Wild. {\em ICCV}, 2015.
-\bibitem{agustsson2017ntire} E.~Agustsson and R.~Timofte. NTIRE 2017 Challenge on Single Image Super-Resolution: Dataset and Study. {\em CVPR Workshops}, 2017.
+% Springer reference style: "Surname, I.: Title. Venue vol(issue), pages (year)".
+% Every entry below is transcribed from paper/references.bib, which the authors
+% took from the publishers' own records. Author lists run to three names then
+% "et al.". Do not edit these by hand -- correct references.bib and copy across.
+\bibitem{shang2024resdiff} Shang, S., Shan, Z., Liu, G., et al.: ResDiff: combining CNN and diffusion model for image super-resolution. In: Proceedings of the 38th AAAI Conference on Artificial Intelligence, article 998, 9 pp. AAAI Press (2024)
+\bibitem{li2022srdiff} Li, H., Yang, Y., Chang, M., et al.: SRDiff: single image super-resolution with diffusion probabilistic models. Neurocomputing 479, 47--59 (2022)
+\bibitem{saharia2022image} Saharia, C., Ho, J., Chan, W., et al.: Image super-resolution via iterative refinement. IEEE Trans. Pattern Anal. Mach. Intell. 45(4), 4713--4726 (2023)
+\bibitem{ho2020denoising} Ho, J., Jain, A., Abbeel, P.: Denoising diffusion probabilistic models. In: Advances in Neural Information Processing Systems 33 (NeurIPS 2020), article 574, 12 pp. Curran Associates (2020)
+\bibitem{nichol2021improved} Nichol, A., Dhariwal, P.: Improved denoising diffusion probabilistic models. arXiv:2102.09672 (2021)
+\bibitem{choi2022perception} Choi, J., Lee, J., Shin, C., et al.: Perception prioritized training of diffusion models. arXiv:2204.00227 (2022)
+\bibitem{hang2023efficient} Hang, T., Gu, S., Li, C., et al.: Efficient diffusion training via Min-SNR weighting strategy. arXiv:2303.09556 (2024)
+\bibitem{ledig2017photo} Ledig, C., Theis, L., Huszar, F., et al.: Photo-realistic single image super-resolution using a generative adversarial network. arXiv:1609.04802 (2017)
+\bibitem{wang2018esrgan} Wang, X., Yu, K., Wu, S., et al.: ESRGAN: enhanced super-resolution generative adversarial networks. In: Computer Vision -- ECCV 2018 Workshops, Part V, pp. 63--79. Springer, Berlin (2018)
+\bibitem{reinhard2001color} Reinhard, E., Ashikhmin, M., Gooch, B., et al.: Color transfer between images. IEEE Comput. Graph. Appl. 21(5), 34--41 (2001)
+\bibitem{pitie2005ndim} Piti\'e, F., Dahyot, R.: N-dimensional probability density function transfer and its application to colour transfer. In: Proceedings of the IEEE International Conference on Computer Vision, vol. 2, pp. 1434--1439 (2005)
+\bibitem{barron2015convolutional} Barron, J.T.: Convolutional color constancy. In: Proceedings of the IEEE International Conference on Computer Vision (ICCV), pp. 379--387 (2015)
+\bibitem{afifi2019color} Afifi, M., Price, B., Cohen, S., et al.: When color constancy goes wrong: correcting improperly white-balanced images. In: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR), pp. 1535--1544 (2019)
+\bibitem{heusel2017gans} Heusel, M., Ramsauer, H., Unterthiner, T., et al.: GANs trained by a two time-scale update rule converge to a local Nash equilibrium. In: Advances in Neural Information Processing Systems 30 (NIPS 2017), pp. 6629--6640. Curran Associates (2017)
+\bibitem{zhang2018unreasonable} Zhang, R., Isola, P., Efros, A.A., et al.: The unreasonable effectiveness of deep features as a perceptual metric. In: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR), pp. 586--595 (2018)
+\bibitem{wang2004image} Wang, Z., Bovik, A.C., Sheikh, H.R., et al.: Image quality assessment: from error visibility to structural similarity. IEEE Trans. Image Process. 13(4), 600--612 (2004)
+\bibitem{liu2015faceattributes} Liu, Z., Luo, P., Wang, X., et al.: Deep learning face attributes in the wild. In: Proceedings of the IEEE International Conference on Computer Vision (ICCV), pp. 3730--3738 (2015)
+\bibitem{agustsson2017ntire} Agustsson, E., Timofte, R.: NTIRE 2017 challenge on single image super-resolution: dataset and study. In: Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition Workshops (CVPRW), pp. 1122--1131 (2017)
 \end{thebibliography}
 
 \end{document}
