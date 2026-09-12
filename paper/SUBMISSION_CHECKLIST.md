@@ -131,8 +131,10 @@ python tools/tex2docx.py && python tools/check_docx.py paper/Kumar_CC-ResDiff.do
 resolves, every style name exists, no LaTeX residue survived, and every
 non-ASCII character exists in the font its own run asks for. It then renders
 with LibreOffice and counts pages for real: **10 pages, exactly at the limit,
-with 11.6 cm spare on the last page.** That slack is the margin of safety --
-Word may break a line or two differently, but not half a page's worth.
+with 6.1 cm spare on the last page.** That slack is the margin of safety -- Word
+may break a line or two differently, but not 6 cm worth. (It was 11.6 cm before
+the verified bibliography went in; full author lists and page ranges cost 5.5 cm.
+Anything added from here eats directly into that margin.)
 
 To regenerate the PDF (for your own checking; the submission is the .docx):
 
