@@ -28,13 +28,14 @@ first/corresponding author must register the paper or it is withdrawn from the
 proceedings.
 
 Current compliance: abstract 248 words (Springer wants 150-250), 8 keywords
-(exactly at the cap). Page count and the Word conversion are still unverified --
-see "MUST DO" below.
+(exactly at the cap), ~8.9 pages estimated. The Word file is built and checked --
+see "The Word file" below.
 
 ## Springer template header, from `splnproc1703.docm`
 
-Paste the content into the sample document and apply these ribbon styles in
-this order; do not rely on copy-paste carrying formatting across.
+`tools/tex2docx.py` writes these styles directly, so this table is reference
+rather than instructions -- it is what to check against if the layout ever looks
+wrong, and what to follow if you end up styling anything by hand.
 
 | style | content |
 |---|---|
@@ -107,27 +108,53 @@ Optional: add ORCID ids as `[0000-1111-2222-3333]` superscripts after each name.
 They are not printed in the book, but in the eBook they become links to the
 ORCID profile.
 
-Abstract is 248 words. Still verify the compiled page count and the equation
-rendering visually -- neither is checkable without a LaTeX toolchain here.
+Abstract is 248 words.
+
+Also fixed during the Word conversion: Section 3 read "Pooling is what makes
+Eq. 3 complementary rather than redundant: texture and edges, retaining only the
+spatial color balance...". The condensing pass had dropped "at $k=8$ it
+discards", leaving the sentence without a verb. Restored from `cc_resdiff.tex`.
+
+## The Word file
+
+`paper/Kumar_CC-ResDiff.docx` is built from the .tex by
+`tools/tex2docx.py`, which writes straight into the styles of
+`splnproc1703.docm`. **Edit the .tex and re-run the converter; do not hand-edit
+the .docx**, or the two drift apart.
+
+```bash
+python tools/tex2docx.py && python tools/check_docx.py paper/Kumar_CC-ResDiff.docx
+```
+
+`tools/check_docx.py` verifies the parts are well-formed, every relationship
+resolves, every style name exists, and no LaTeX residue survived, then estimates
+the length by laying the text out with real Times New Roman metrics:
+**~8.9 pages, inside the 10-page limit.** Section and reference numbers come
+from the template's own numbering, and the table, figure and equation numbers
+are SEQ fields, so all of them renumber themselves if you move things.
+
+Still to check once you have Word in front of you -- none of this is verifiable
+without it:
+
+- Open it and press Ctrl+A then F9 to refresh the SEQ fields.
+- Look at the four equations. They are real OMML, built by hand from the LaTeX,
+  so they are editable in Word's equation editor -- but nothing here has
+  rendered them.
+- Confirm the real page count against the ~8.9 estimate. Word justifies and
+  hyphenates; the estimate does neither, so treat it as +/- half a page.
+- The macro ribbon is deliberately absent: the .docx is stripped of the
+  template's VBA so it is a plain .docx, not a macro file. The styles are all
+  still there, so apply them from the Styles pane if you need to.
 
 ## MUST DO BEFORE SUBMITTING -- I could not do these here
 
-1. **Convert to .doc/.docx.** The conference requires it. Neither pandoc nor a
-   LaTeX toolchain is installed on this machine, so no conversion was possible
-   and the compiled page count is unverified. Equations will need Word equation
-   objects; the five tables convert cleanly.
-2. **Apply the official Springer LNEE template.** Open
-   `~/Downloads/Word_Template/splnproc1703.docm`, overwrite the sample content,
-   and style each element with the "Springer Proceedings Macros" ribbon (see the
-   header table above). If that ribbon is missing, macros are disabled by your
-   Office security settings. The `article` preamble here is a placeholder.
-3. **Fill in both affiliations, and confirm the second author's name.** Marked
-   `TODO` in the author block; emails are filled in.
-4. **Verify every bibliography entry.** They were drafted from memory. Titles and
+1. **Fill in both affiliations, and confirm the second author's name.** Marked
+   `TODO` in the author block; emails are filled in. Re-run the converter after.
+2. **Verify every bibliography entry.** They were drafted from memory. Titles and
    authors are believed correct; venues, years and page numbers are NOT checked.
    Verify most carefully: SR3 (TPAMI volume/year), Perception Prioritized
    Training (author list), Min-SNR (author list).
-5. **Resolve the spacing contradiction with the organisers.** The call says
+3. **Resolve the spacing contradiction with the organisers.** The call says
    "double line spacing"; the Springer LNEE template it also mandates is
    single-spaced with a fixed 12.2 x 19.3 cm text area, and its macros set
    spacing themselves. These cannot both hold. Ask which governs the 10-page
@@ -135,7 +162,7 @@ rendering visually -- neither is checkable without a LaTeX toolchain here.
    is needed: take it from the ablation table, then the gradient discussion.
    Until they answer, build the Word file with the template's own spacing; that
    is the version the proceedings are typeset from.
-6. **Relabel the seeds.** Table 1 lists "seed A/B/C"; B was an independently
+4. **Relabel the seeds.** Table 1 lists "seed A/B/C"; B was an independently
    executed Colab run whose seed value should be recorded accurately.
 
 ## If a further cut is needed, in order of what to drop

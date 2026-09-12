@@ -178,8 +178,8 @@ and add it to the primary objective with a single weight $\lambda$:
 \label{eq:total}
 \end{equation}
 with $\mathcal{P}_k$ adaptive average pooling to a $k \times k$ grid. Pooling is
-what makes Eq.~\ref{eq:gcc} complementary rather than redundant:
-texture and edges, retaining only the spatial color balance that
+what makes Eq.~\ref{eq:gcc} complementary rather than redundant: at $k=8$ it
+discards texture and edges, retaining only the spatial color balance that
 Eq.~\ref{eq:ddpm} leaves unconstrained.
 
 Eq.~\ref{eq:total} is the complete objective; the remainder of the training
