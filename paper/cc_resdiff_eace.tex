@@ -1,21 +1,47 @@
 % =====================================================================
-% CC-ResDiff -- EACE-2026 submission version (target: 10 pages).
+% CC-ResDiff -- EACE-2026 submission version.
 %
-% This is the CONDENSED version. paper/cc_resdiff.tex remains the extended
-% draft and is the reference for anything cut here.
+% CONFERENCE RULES, read off https://www.psit.ac.in/eace2026/ on 2026-09-12:
+%   * "Papers must not exceed 10 pages, include no more than 8 keywords, and
+%     follow the prescribed format: Times New Roman, 10-point font, double line
+%     spacing, submitted in Microsoft Word (.doc/.docx) format."
+%   * Springer LNEE formatting guidelines; Word template splnproc1703.docm.
+%   * Submission deadline 15 Sep 2026, via
+%     https://proconf.org/events/index.php?url=eace-2026
+%     Notification 25 Sep; camera-ready 30 Sep; conference 20-21 Nov 2026.
+%   * The first/corresponding author must register the paper, or it is
+%     withdrawn from the proceedings.
 %
-% BEFORE SUBMITTING:
-%  1. Replace this preamble with the official EACE / Springer LNEE template.
-%     The conference requires .doc/.docx, so this file is the content source,
-%     not the submission artefact.
-%  2. Fill in affiliation and email (marked TODO below).
-%  3. Verify every bibliography entry. They were drafted from memory; venues,
+% SPRINGER TEMPLATE HEADER ORDER (from splnproc1703.docm, styles in brackets):
+%   [papertitle]  Contribution Title
+%   [author]      First Author(1)[ORCID] and Second Author(2)[ORCID]
+%   [address]     one line per affiliation, e-mail on the last line
+%   [abstract]    prefixed "Abstract.", 150-250 words
+%   [keywords]    prefixed "Keywords:", comma separated, closing period
+%   Only heading levels 1-2 are numbered; levels 3-4 are unnumbered run-in
+%   headings. References are numbered, cited as [1], in Springer style:
+%   "Author, F.: Article title. Journal 2(5), 99-110 (2016)."
+%   Current state: abstract 248 words, 8 keywords -- both within limits.
+%
+% This .tex is the CONTENT SOURCE, not the submission artefact: EACE accepts
+% Word only. Paste this content into splnproc1703.docm and apply the ribbon
+% styles above. paper/cc_resdiff.tex remains the extended draft.
+%
+% STILL OPEN:
+%  1. Affiliations for both authors (marked TODO below), and confirmation of
+%     the second author's display name -- it is inferred from the e-mail.
+%  2. Verify every bibliography entry. They were drafted from memory; venues,
 %     years and page numbers have NOT been checked against the actual papers.
-%  4. Confirm with the organisers whether single- or double-spacing governs the
-%     10-page count. It roughly halves what fits and changes how much to cut.
+%  3. Spacing conflict: the call for papers says double-spaced, but the
+%     Springer LNEE template it also mandates is single-spaced. Ask the
+%     organisers which governs the 10-page count -- it roughly halves what
+%     fits. \doublespacing below is commented out so both can be measured.
 % =====================================================================
 \documentclass[10pt]{article}
 \usepackage[margin=1in]{geometry}
+\usepackage{times}          % Times New Roman, per the call for papers
+\usepackage{setspace}
+% \doublespacing            % uncomment to measure against the double-spaced rule
 \usepackage{amsmath,amssymb}
 \usepackage{booktabs}
 \usepackage{graphicx}
@@ -24,9 +50,16 @@
 
 \title{\textbf{CC-ResDiff: Bounding Seed-Dependent Color Drift in
 Residual-Space Diffusion Super-Resolution}}
-\author{Sudhir Kumar\\
-\small TODO: Department, Institution, City, Country\\
-\small \texttt{TODO: email@institution.edu}}
+% Author order as instructed: Sudhir Kumar first, chattopadhyaysanjoy18@gmail.com
+% second. NOTE: the second author's display name below is INFERRED from that
+% e-mail address and must be confirmed with them before submission, along with
+% both affiliations and the preferred spelling of each name.
+% EACE requires the first/corresponding author to register the paper.
+\author{Sudhir Kumar$^{1}$ and Sanjoy Chattopadhyay$^{2}$\\[4pt]
+\small $^{1}$TODO: Department, Institution, City, Country\\
+\small $^{2}$TODO: Department, Institution, City, Country\\[2pt]
+\small \texttt{snghsudhirkumar06@gmail.com} \quad
+\small \texttt{chattopadhyaysanjoy18@gmail.com}}
 \date{}
 
 \begin{document}

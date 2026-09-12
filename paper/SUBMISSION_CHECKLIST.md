@@ -3,6 +3,53 @@
 `cc_resdiff_eace.tex` is the condensed submission version (~10 pages target).
 `cc_resdiff.tex` is the extended draft, kept as the reference for cut material.
 
+## Conference rules, read off the EACE-2026 site on 2026-09-12
+
+Source: <https://www.psit.ac.in/eace2026/>
+
+> "Papers must not exceed 10 pages, include no more than 8 keywords, and follow
+> the prescribed format: Times New Roman, 10-point font, double line spacing,
+> submitted in Microsoft Word (.doc/.docx) format."
+
+Springer LNEE formatting guidelines apply; the Word template is the one in
+`~/Downloads/Word_Template/` (`splnproc1703.docm`, or `_mac` for Word for Mac
+2016 -- the macros do **not** work in Word for Mac 2011).
+
+| milestone | date |
+|---|---|
+| paper submission | **15 Sep 2026** |
+| acceptance notification | 25 Sep 2026 |
+| camera-ready | 30 Sep 2026 |
+| registration deadline | 10 Oct 2026 |
+| conference | 20-21 Nov 2026 |
+
+Upload at <https://proconf.org/events/index.php?url=eace-2026>. The
+first/corresponding author must register the paper or it is withdrawn from the
+proceedings.
+
+Current compliance: abstract 248 words (Springer wants 150-250), 8 keywords
+(exactly at the cap). Page count and the Word conversion are still unverified --
+see "MUST DO" below.
+
+## Springer template header, from `splnproc1703.docm`
+
+Paste the content into the sample document and apply these ribbon styles in
+this order; do not rely on copy-paste carrying formatting across.
+
+| style | content |
+|---|---|
+| `papertitle` | contribution title |
+| `author` | `First Author1[ORCID] and Second Author2[ORCID]` |
+| `address` | one line per affiliation, e-mail on the last line |
+| `abstract` | macro prepends "Abstract."; 150-250 words |
+| `keywords` | macro prepends "Keywords:"; comma separated, closing period |
+
+Only heading levels 1 and 2 are numbered; levels 3 and 4 are unnumbered run-in
+headings (bold and italic respectively). References are numbered and cited as
+`[1]`, in Springer style: `Author, F.: Article title. Journal 2(5), 99-110
+(2016).` Insert Greek letters and symbols via Insert -> Symbol, never by typing
+them, or reformatting can silently drop them.
+
 ## Done
 
 - Condensed: 18 subsections -> 5; 9 tables -> 5; 3 figures -> 1.
@@ -40,7 +87,27 @@
   replicated evidence, with the 25k and DIV2K tiers being single runs. They are
   no longer presented as five equally strong confirmations.
 
-Abstract is 254 words. Still verify the compiled page count and the equation
+## Authors -- added 2026-09-12
+
+Author block now reads:
+
+    Sudhir Kumar(1) and Sanjoy Chattopadhyay(2)
+    snghsudhirkumar06@gmail.com   chattopadhyaysanjoy18@gmail.com
+
+Two things to confirm before submitting:
+
+- **The second author's display name is inferred from the e-mail address**, not
+  supplied. Confirm the spelling they publish under.
+- **Both affiliations are still `TODO`.** Springer wants department, institution,
+  city, postcode and country on the `address` line. If both authors share one
+  affiliation, collapse to a single unnumbered `address` line and drop the
+  superscripts.
+
+Optional: add ORCID ids as `[0000-1111-2222-3333]` superscripts after each name.
+They are not printed in the book, but in the eBook they become links to the
+ORCID profile.
+
+Abstract is 248 words. Still verify the compiled page count and the equation
 rendering visually -- neither is checkable without a LaTeX toolchain here.
 
 ## MUST DO BEFORE SUBMITTING -- I could not do these here
@@ -49,17 +116,25 @@ rendering visually -- neither is checkable without a LaTeX toolchain here.
    LaTeX toolchain is installed on this machine, so no conversion was possible
    and the compiled page count is unverified. Equations will need Word equation
    objects; the five tables convert cleanly.
-2. **Apply the official EACE / Springer LNEE template.** The preamble here is
-   plain `article` and is a placeholder.
-3. **Fill in affiliation and email.** Marked `TODO` in the author block.
+2. **Apply the official Springer LNEE template.** Open
+   `~/Downloads/Word_Template/splnproc1703.docm`, overwrite the sample content,
+   and style each element with the "Springer Proceedings Macros" ribbon (see the
+   header table above). If that ribbon is missing, macros are disabled by your
+   Office security settings. The `article` preamble here is a placeholder.
+3. **Fill in both affiliations, and confirm the second author's name.** Marked
+   `TODO` in the author block; emails are filled in.
 4. **Verify every bibliography entry.** They were drafted from memory. Titles and
    authors are believed correct; venues, years and page numbers are NOT checked.
    Verify most carefully: SR3 (TPAMI volume/year), Perception Prioritized
    Training (author list), Min-SNR (author list).
-5. **Confirm the spacing rule with the organisers.** Single- vs double-spacing
-   roughly halves what fits in 10 pages. If double-spacing governs, a further
-   cut is needed -- take it from the ablation table and the gradient discussion,
-   in that order.
+5. **Resolve the spacing contradiction with the organisers.** The call says
+   "double line spacing"; the Springer LNEE template it also mandates is
+   single-spaced with a fixed 12.2 x 19.3 cm text area, and its macros set
+   spacing themselves. These cannot both hold. Ask which governs the 10-page
+   count -- it roughly halves what fits. If double-spacing wins, a further cut
+   is needed: take it from the ablation table, then the gradient discussion.
+   Until they answer, build the Word file with the template's own spacing; that
+   is the version the proceedings are typeset from.
 6. **Relabel the seeds.** Table 1 lists "seed A/B/C"; B was an independently
    executed Colab run whose seed value should be recorded accurately.
 
