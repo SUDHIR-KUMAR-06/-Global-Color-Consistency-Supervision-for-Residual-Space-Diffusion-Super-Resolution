@@ -92,7 +92,7 @@ them, or reformatting can silently drop them.
 
     Sudhir Kumar[0009-0007-0878-0231] and Sanjoy Chattopadhyay[0009-0008-0937-6676]
     Pranveer Singh Institute of Technology, Kanpur 209305, Uttar Pradesh, India
-    snghsudhirkumar06@gmail.com, chattopadhyaysanjoy18@gmail.com
+    snghsudhirkumar06@gmail.com, sanjoyrsearch@gmail.com
 
 Sudhir Kumar is first and corresponding author, and must be the one who
 registers the paper -- EACE withdraws papers the corresponding author has not
