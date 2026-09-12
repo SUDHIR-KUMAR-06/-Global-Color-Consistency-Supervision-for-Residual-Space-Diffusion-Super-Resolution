@@ -47,17 +47,23 @@
 \usepackage{graphicx}
 \usepackage[hidelinks]{hyperref}
 \newcommand{\best}[1]{\textbf{#1}}
+% ORCID ids print as a superscript bracket in LaTeX; tex2docx.py maps them onto
+% the template's ORCID character style. They are not printed in the book -- in
+% the eBook they become links to the ORCID profile.
+\newcommand{\orcid}[1]{\textsuperscript{[#1]}}
 
 \title{\textbf{CC-ResDiff: Bounding Seed-Dependent Color Drift in
 Residual-Space Diffusion Super-Resolution}}
-% Author order as instructed: Sudhir Kumar first, chattopadhyaysanjoy18@gmail.com
-% second. NOTE: the second author's display name below is INFERRED from that
-% e-mail address and must be confirmed with them before submission, along with
-% both affiliations and the preferred spelling of each name.
-% EACE requires the first/corresponding author to register the paper.
-\author{Sudhir Kumar$^{1}$ and Sanjoy Chattopadhyay$^{2}$\\[4pt]
-\small $^{1}$TODO: Department, Institution, City, Country\\
-\small $^{2}$TODO: Department, Institution, City, Country\\[2pt]
+% Both authors are at PSIT Kanpur, so Springer's convention collapses the
+% affiliation to one unnumbered address line and drops the superscript numerals.
+% Sudhir Kumar is first and corresponding author; EACE requires the
+% corresponding author to register the paper or it is withdrawn.
+% Job titles are not part of a Springer author block, so "Assistant Professor"
+% is deliberately not printed. To name a department, put it before the
+% institution: "Department of ..., Pranveer Singh Institute of Technology, ...".
+\author{Sudhir Kumar\orcid{0009-0007-0878-0231} and
+Sanjoy Chattopadhyay\orcid{0009-0008-0937-6676}\\[4pt]
+\small Pranveer Singh Institute of Technology, Kanpur 209305, Uttar Pradesh, India\\[2pt]
 \small \texttt{snghsudhirkumar06@gmail.com} \quad
 \small \texttt{chattopadhyaysanjoy18@gmail.com}}
 \date{}

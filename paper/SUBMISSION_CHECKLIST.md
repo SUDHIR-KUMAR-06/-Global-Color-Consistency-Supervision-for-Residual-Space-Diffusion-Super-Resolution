@@ -28,8 +28,8 @@ first/corresponding author must register the paper or it is withdrawn from the
 proceedings.
 
 Current compliance: abstract 248 words (Springer wants 150-250), 8 keywords
-(exactly at the cap), ~8.9 pages estimated. The Word file is built and checked --
-see "The Word file" below.
+(exactly at the cap), 10 pages rendered (the cap). The Word file is built and
+checked -- see "The Word file" below.
 
 ## Springer template header, from `splnproc1703.docm`
 
@@ -88,25 +88,26 @@ them, or reformatting can silently drop them.
   replicated evidence, with the 25k and DIV2K tiers being single runs. They are
   no longer presented as five equally strong confirmations.
 
-## Authors -- added 2026-09-12
+## Authors -- confirmed 2026-09-12
 
-Author block now reads:
+    Sudhir Kumar[0009-0007-0878-0231] and Sanjoy Chattopadhyay[0009-0008-0937-6676]
+    Pranveer Singh Institute of Technology, Kanpur 209305, Uttar Pradesh, India
+    snghsudhirkumar06@gmail.com, chattopadhyaysanjoy18@gmail.com
 
-    Sudhir Kumar(1) and Sanjoy Chattopadhyay(2)
-    snghsudhirkumar06@gmail.com   chattopadhyaysanjoy18@gmail.com
+Sudhir Kumar is first and corresponding author, and must be the one who
+registers the paper -- EACE withdraws papers the corresponding author has not
+registered.
 
-Two things to confirm before submitting:
+Both authors are at PSIT, so the affiliation is one unnumbered `address` line
+with no superscript numerals, per Springer's convention for a shared
+affiliation. Two deliberate omissions:
 
-- **The second author's display name is inferred from the e-mail address**, not
-  supplied. Confirm the spelling they publish under.
-- **Both affiliations are still `TODO`.** Springer wants department, institution,
-  city, postcode and country on the `address` line. If both authors share one
-  affiliation, collapse to a single unnumbered `address` line and drop the
-  superscripts.
-
-Optional: add ORCID ids as `[0000-1111-2222-3333]` superscripts after each name.
-They are not printed in the book, but in the eBook they become links to the
-ORCID profile.
+- **No job titles.** "Assistant Professor" is not part of a Springer author
+  block; the address line carries the institution, not the post.
+- **No department.** The template's own sample addresses give institution, city,
+  postcode and country and no department, so this is complete as it stands. To
+  name one (CSE or ECE), put it before the institution in the `\author` block
+  and re-run the converter.
 
 Abstract is 248 words.
 
@@ -127,34 +128,49 @@ python tools/tex2docx.py && python tools/check_docx.py paper/Kumar_CC-ResDiff.do
 ```
 
 `tools/check_docx.py` verifies the parts are well-formed, every relationship
-resolves, every style name exists, and no LaTeX residue survived, then estimates
-the length by laying the text out with real Times New Roman metrics:
-**~8.9 pages, inside the 10-page limit.** Section and reference numbers come
-from the template's own numbering, and the table, figure and equation numbers
-are SEQ fields, so all of them renumber themselves if you move things.
+resolves, every style name exists, no LaTeX residue survived, and every
+non-ASCII character exists in the font its own run asks for. It then renders
+with LibreOffice and counts pages for real: **10 pages, exactly at the limit,
+with 11.6 cm spare on the last page.** That slack is the margin of safety --
+Word may break a line or two differently, but not half a page's worth.
 
-Still to check once you have Word in front of you -- none of this is verifiable
-without it:
+To regenerate the PDF (for your own checking; the submission is the .docx):
 
-- Open it and press Ctrl+A then F9 to refresh the SEQ fields.
-- Look at the four equations. They are real OMML, built by hand from the LaTeX,
-  so they are editable in Word's equation editor -- but nothing here has
-  rendered them.
-- Confirm the real page count against the ~8.9 estimate. Word justifies and
-  hyphenates; the estimate does neither, so treat it as +/- half a page.
+```bash
+soffice --headless --convert-to pdf --outdir paper paper/Kumar_CC-ResDiff.docx
+```
+
+### Two decisions worth knowing about
+
+**Caption and equation numbers are literal text, not SEQ fields.** The Springer
+macro uses fields so Word renumbers when you move things. We do not need that --
+the .tex is the source of truth and every number is recomputed on each build --
+and the fields actively break the PDF: LibreOffice re-evaluates SEQ on load and
+resets every one to 1, so a field version exports as "Table 1" five times and
+"(1)" four times. The cost: reordering tables *inside Word* will not renumber
+them. Reorder in the .tex instead.
+
+**Section and reference numbers still come from the template's own numbering**,
+which both Word and LibreOffice handle correctly.
+
+Still to check once you have Word in front of you:
+
+- The four equations are real OMML, editable in Word's equation editor. They
+  render correctly in LibreOffice; Word uses Cambria Math where LibreOffice
+  substitutes Liberation Serif, so expect them to look slightly better, not
+  worse.
+- Confirm the page count is still 10.
 - The macro ribbon is deliberately absent: the .docx is stripped of the
   template's VBA so it is a plain .docx, not a macro file. The styles are all
   still there, so apply them from the Styles pane if you need to.
 
 ## MUST DO BEFORE SUBMITTING -- I could not do these here
 
-1. **Fill in both affiliations, and confirm the second author's name.** Marked
-   `TODO` in the author block; emails are filled in. Re-run the converter after.
-2. **Verify every bibliography entry.** They were drafted from memory. Titles and
+1. **Verify every bibliography entry.** They were drafted from memory. Titles and
    authors are believed correct; venues, years and page numbers are NOT checked.
    Verify most carefully: SR3 (TPAMI volume/year), Perception Prioritized
    Training (author list), Min-SNR (author list).
-3. **Resolve the spacing contradiction with the organisers.** The call says
+2. **Resolve the spacing contradiction with the organisers.** The call says
    "double line spacing"; the Springer LNEE template it also mandates is
    single-spaced with a fixed 12.2 x 19.3 cm text area, and its macros set
    spacing themselves. These cannot both hold. Ask which governs the 10-page
@@ -162,7 +178,7 @@ without it:
    is needed: take it from the ablation table, then the gradient discussion.
    Until they answer, build the Word file with the template's own spacing; that
    is the version the proceedings are typeset from.
-4. **Relabel the seeds.** Table 1 lists "seed A/B/C"; B was an independently
+3. **Relabel the seeds.** Table 1 lists "seed A/B/C"; B was an independently
    executed Colab run whose seed value should be recorded accurately.
 
 ## If a further cut is needed, in order of what to drop

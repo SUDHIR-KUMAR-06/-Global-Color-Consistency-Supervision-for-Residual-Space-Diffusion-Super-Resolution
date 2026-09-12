@@ -460,33 +460,71 @@ def para(style, body, extra_ppr=''):
     return '<w:p>%s%s</w:p>' % (ppr, body)
 
 
-def seq_field(name, cached):
-    """A SEQ field so Word renumbers, with the right number cached in case
-    the reader never presses F9."""
-    instr = ' SEQ "%s" \\* MERGEFORMAT ' % name
-    return ('<w:fldSimple w:instr="%s"><w:r><w:rPr><w:b/><w:noProof/></w:rPr>'
-            '<w:t>%d</w:t></w:r></w:fldSimple>' % (aesc(instr), cached))
+def counter(number, bold):
+    """Caption and equation numbers, as literal text rather than a SEQ field.
+
+    The Springer macro uses SEQ fields so Word renumbers when you move things
+    around. We do not need that: the .tex is the source of truth and every
+    number here is recomputed from it on each build. Meanwhile the fields
+    actively hurt -- LibreOffice re-evaluates SEQ on load and resets every one
+    to 1, so a PDF exported from a field version reads "Table 1" five times and
+    "(1)" four times. Literal numbers render correctly in every viewer.
+
+    The consequence to know about: reordering tables *inside Word* will not
+    renumber them. Reorder in the .tex and re-run this script instead.
+    """
+    return ('<w:r>%s<w:t>%d</w:t></w:r>'
+            % ('<w:rPr><w:b/></w:rPr>' if bold else '', number))
+
+
+CAPTION_PT = 9.0              # tablecaption / figurecaption are sz 18
+
+
+def line_count(text, size_pt, width_pt=TEXT_WIDTH_CM * 72 / 2.54):
+    """How many lines this text takes at `size_pt` across the text block."""
+    try:
+        from PIL import ImageFont
+        font = ImageFont.truetype(r'C:\Windows\Fonts\times.ttf',
+                                  int(round(size_pt * 4)))
+        scale = size_pt / int(round(size_pt * 4))
+        width = lambda s: font.getlength(s) * scale          # noqa: E731
+    except Exception:                                        # no font? estimate
+        width = lambda s: len(s) * size_pt * 0.46            # noqa: E731
+    lines, cur, space = 1, 0.0, width(' ')
+    for word in text.split():
+        w = width(word)
+        if cur and cur + space + w > width_pt:
+            lines, cur = lines + 1, w
+        else:
+            cur += (space if cur else 0) + w
+    return lines
 
 
 def caption_para(style, word, number, runs):
-    """'Table 3.' / 'Fig. 1.' in bold, then the caption text."""
+    """'Table 3.' / 'Fig. 1.' in bold, then the caption text.
+
+    The template's caption styles are centred, and its macro switches a caption
+    to justified once it runs past one line ("Short captions are centered,
+    while long ones are justified"). Six centred lines under a figure look
+    wrong, so apply the same rule.
+    """
     lead = ('<w:r><w:rPr><w:b/></w:rPr><w:t xml:space="preserve">%s </w:t></w:r>'
             % word)
-    num = seq_field('Table' if word == 'Table' else 'Figure', number)
     dot = '<w:r><w:rPr><w:b/></w:rPr><w:t>.</w:t></w:r>'
     gap = '<w:r><w:t xml:space="preserve"> </w:t></w:r>'
-    return para(style, lead + num + dot + gap + runs_xml(runs))
+    plain = '%s %d. %s' % (word, number, ''.join(r.t for r in runs))
+    jc = ('<w:jc w:val="both"/>'
+          if line_count(plain, CAPTION_PT) > 1 else '')
+    return para(style, lead + counter(number, True) + dot + gap + runs_xml(runs),
+                jc)
 
 
 def equation_para(omml, number):
     """Template layout: tab, equation, tab, (n) -- matching the sample doc."""
-    instr = ' SEQ "Equation" \\n \\* MERGEFORMAT '
-    fld = ('<w:fldSimple w:instr="%s"><w:r><w:rPr><w:noProof/></w:rPr>'
-           '<w:t>%d</w:t></w:r></w:fldSimple>' % (aesc(instr), number))
     return para('equation',
                 '<w:r><w:tab/></w:r><m:oMath>%s</m:oMath>'
                 '<w:r><w:tab/><w:t>(</w:t></w:r>%s<w:r><w:t>)</w:t></w:r>'
-                % (omml, fld))
+                % (omml, counter(number, False)))
 
 
 def table_xml(spec, rows, inline):
@@ -843,6 +881,7 @@ def build(tex_path, template, out_path):
     media = []
     rels_extra = []
     fresh = True          # next text paragraph is the first of its block
+    pending_space = False  # ...and needs 6 pt of air above it
     for kind, val in paper.blocks:
         if kind == 'heading1':
             out.append(para('heading1', runs_xml(inline.render(val))))
@@ -860,7 +899,10 @@ def build(tex_path, template, out_path):
             out.append(caption_para('tablecaption', 'Table', val['number'],
                                     inline.render(val['caption'])))
             out.append(table_xml(val['spec'], val['rows'], inline))
-            fresh = True
+            # A table has no space of its own after it, so the next paragraph
+            # would start hard against the bottom rule. 6 pt is what the
+            # template's own "add vertical space" macro inserts.
+            fresh = pending_space = True
         elif kind == 'figure':
             rid = 'rId900'
             src = os.path.join(os.path.dirname(tex_path), val['file'])
@@ -878,6 +920,7 @@ def build(tex_path, template, out_path):
                                     inline.render(val['caption'])))
             fresh = True
         else:
+            gap = '<w:spacing w:before="120"/>' if pending_space else ''
             if out and isinstance(out[-1], tuple) and out[-1][0] == 'RUNIN':
                 head = inline.render(out.pop()[1].rstrip())
                 for r in head:
@@ -885,11 +928,12 @@ def build(tex_path, template, out_path):
                 head.append(Run(' ', b=True, style='heading3'))
                 out.append(para('heading 3',
                                 runs_xml(head)
-                                + runs_xml(inline.render(val), unbold=True)))
+                                + runs_xml(inline.render(val), unbold=True),
+                                gap))
             else:
                 out.append(para('p1a' if fresh else 'Normal',
-                                runs_xml(inline.render(val))))
-            fresh = False
+                                runs_xml(inline.render(val)), gap))
+            fresh = pending_space = False
 
     if any(isinstance(p, tuple) for p in out):
         raise SystemExit('tex2docx: a \\paragraph had no text after it')
@@ -906,43 +950,61 @@ def build(tex_path, template, out_path):
 
 
 def parse_author_block(raw):
-    """Pull names, numbered affiliations and e-mails out of the \\author{} block."""
-    lines = [l.strip() for l in re.split(r'\\\\(?:\[[^\]]*\])?', raw) if l.strip()]
+    """Pull names, ORCIDs, affiliations and e-mails out of the \\author{} block.
+
+    The first line holds the names. Affiliations may be numbered ("$^{1}$Dept,
+    ...") when authors differ, or a single unnumbered line when they share one
+    institution -- Springer drops the superscripts in that case.
+    """
+    lines = [re.sub(r'\\small\s*', '', l).strip()
+             for l in re.split(r'\\\\(?:\[[^\]]*\])?', raw) if l.strip()]
     names, affils, emails = [], [], []
-    for ln in lines:
-        ln = re.sub(r'\\small\s*', '', ln).strip()
+    for k, ln in enumerate(lines):
         if r'\texttt' in ln:
             emails += re.findall(r'\\texttt\{([^}]*)\}', ln)
-        elif re.match(r'\$\^\{?\d', ln):
-            n = re.match(r'\$\^\{?(\d+)', ln).group(1)
-            affils.append((n, re.sub(r'^\$\^\{?\d+\}?\$', '', ln).strip()))
-        else:
+        elif not names and not affils:
             for part in re.split(r'\s+and\s+', ln):
-                nm = re.match(r'(.*?)\$\^\{?(\d+)\}?\$\s*$', part.strip())
-                if nm:
-                    names.append((nm.group(1).strip(), nm.group(2)))
-                elif part.strip():
-                    names.append((part.strip(), None))
+                part = part.strip()
+                if not part:
+                    continue
+                orc = re.search(r'\\orcid\{([^}]*)\}', part)
+                part = re.sub(r'\\orcid\{[^}]*\}', '', part).strip()
+                num = re.match(r'(.*?)\$\^\{?(\d+)\}?\$\s*$', part)
+                names.append((num.group(1).strip() if num else part,
+                              num.group(2) if num else None,
+                              orc.group(1) if orc else None))
+        else:
+            m = re.match(r'\$\^\{?(\d+)\}?\$\s*(.*)$', ln)
+            affils.append((m.group(1), m.group(2).strip()) if m else (None, ln))
+    if not names:
+        raise SystemExit('tex2docx: could not read any author name')
     return names, affils, emails
 
 
 def author_runs(names):
     out = []
-    for k, (name, sup) in enumerate(names):
+    for k, (name, sup, orcid) in enumerate(names):
         if k:
             out.append('<w:r><w:t xml:space="preserve"> and </w:t></w:r>')
         out.append('<w:r><w:t xml:space="preserve">%s</w:t></w:r>' % xesc(name))
         if sup:
             out.append('<w:r><w:rPr><w:vertAlign w:val="superscript"/></w:rPr>'
                        '<w:t>%s</w:t></w:r>' % xesc(sup))
+        if orcid:
+            if not re.fullmatch(r'\d{4}-\d{4}-\d{4}-\d{3}[\dX]', orcid):
+                raise SystemExit('tex2docx: %r is not a well-formed ORCID id '
+                                 '(expected 0000-0000-0000-0000)' % orcid)
+            out.append('<w:r><w:rPr><w:rStyle w:val="ORCID"/></w:rPr>'
+                       '<w:t>[%s]</w:t></w:r>' % xesc(orcid))
     return ''.join(out)
 
 
 def address_runs(num, text):
-    return ('<w:r><w:rPr><w:vertAlign w:val="superscript"/></w:rPr>'
-            '<w:t>%s</w:t></w:r>'
-            '<w:r><w:t xml:space="preserve"> %s</w:t></w:r>'
-            % (xesc(num), xesc(text)))
+    """A shared affiliation carries no superscript numeral."""
+    lead = ('<w:r><w:rPr><w:vertAlign w:val="superscript"/></w:rPr>'
+            '<w:t>%s</w:t></w:r>' % xesc(num) if num else '')
+    return lead + ('<w:r><w:t xml:space="preserve">%s%s</w:t></w:r>'
+                   % (' ' if num else '', xesc(text)))
 
 
 def email_runs(emails):

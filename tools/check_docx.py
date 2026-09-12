@@ -184,6 +184,44 @@ def check_glyphs(doc, problems):
           % (checked, ', '.join(sorted(cmaps))))
 
 
+SOFFICE = r'C:\Program Files\LibreOffice\program\soffice.exe'
+
+
+def true_pages(docx):
+    """Render with LibreOffice and count pages for real.
+
+    The metric-based estimate below runs about a page optimistic: it lays out
+    text but models none of the page-break slack that keepNext, keepLines and
+    widow control introduce. Where LibreOffice is installed, measure instead of
+    estimating. (Word may still paginate a line or two differently, so what
+    matters is not just the count but how much slack sits on the last page.)
+    """
+    import subprocess
+    import tempfile
+    if not os.path.exists(SOFFICE):
+        return None
+    try:
+        import fitz
+    except ImportError:
+        return None
+    with tempfile.TemporaryDirectory() as tmp:
+        r = subprocess.run([SOFFICE, '--headless', '--norestore',
+                            '--convert-to', 'pdf', '--outdir', tmp,
+                            os.path.abspath(docx)],
+                           capture_output=True, timeout=180)
+        pdfs = [f for f in os.listdir(tmp) if f.endswith('.pdf')]
+        if not pdfs:
+            print('  (LibreOffice render failed: %s)'
+                  % (r.stderr.decode(errors='replace')[:120] or 'no output'))
+            return None
+        with fitz.open(os.path.join(tmp, pdfs[0])) as d:
+            last = d[len(d) - 1]
+            blocks = last.get_text('blocks')
+            bottom = max((b[3] for b in blocks), default=0)
+            slack_cm = (last.rect.height - 147 - bottom) / 72 * 2.54
+            return len(d), slack_cm
+
+
 def fail(problems, msg):
     problems.append(msg)
 
@@ -288,12 +326,21 @@ def main():
         if s in ('heading1', 'heading2'):
             print('     %s  %s' % ('  ' if s == 'heading2' else '', t))
     w, h = page_box(doc)
-    print('  text block %.0f x %.0f pt; content %.0f pt' % (w, h, height))
-    print('  estimated length: ~%.1f pages at the template\'s own spacing '
-          '(EACE limit 10)' % pages)
-    if pages > 10:
-        print('  OVER THE LIMIT by ~%.1f pages -- see SUBMISSION_CHECKLIST.md '
-              'for the cut order' % (pages - 10))
+    print('  text block %.0f x %.0f pt' % (w, h))
+    real = true_pages(args.docx)
+    if real:
+        n, slack = real
+        print('  LENGTH: %d pages rendered (EACE limit 10), %.1f cm spare on '
+              'the last page' % (n, slack))
+        if n > 10:
+            fail(problems, 'over the 10-page limit by %d -- see '
+                 'SUBMISSION_CHECKLIST.md for the cut order' % (n - 10))
+        elif slack < 3:
+            print('  NOTE: little slack on the last page; Word may paginate a '
+                  'line or two differently than LibreOffice')
+    else:
+        print('  estimated length: ~%.1f pages (metrics only -- runs about a '
+              'page optimistic; install LibreOffice for a true count)' % pages)
     print('  equations carry OMML: %s'
           % ('yes' if any(m for _, _, m in eqs) else 'NO -- math is missing'))
     check_glyphs(doc, problems)
