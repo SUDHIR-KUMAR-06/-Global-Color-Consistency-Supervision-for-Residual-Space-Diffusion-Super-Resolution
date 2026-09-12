@@ -140,6 +140,34 @@ To regenerate the PDF (for your own checking; the submission is the .docx):
 soffice --headless --convert-to pdf --outdir paper paper/Kumar_CC-ResDiff.docx
 ```
 
+## The LaTeX build
+
+MiKTeX is installed (`winget install MiKTeX.MiKTeX`, user scope, with
+`[MPM]AutoInstall=1` so missing packages fetch themselves). From `paper/`, run
+pdflatex **twice** -- there is no BibTeX step, the bibliography is a
+`thebibliography` block, but cross-references need the second pass:
+
+```bash
+pdflatex -interaction=nonstopmode cc_resdiff_eace.tex && pdflatex -interaction=nonstopmode cc_resdiff_eace.tex
+```
+
+That produces `paper/cc_resdiff_eace.pdf`, also 10 pages. The `.tex` now carries
+Springer's page geometry (A4, 12.2 x 19.3 cm text block), so the LaTeX build
+paginates like the Word file instead of like US Letter.
+
+**Three PDFs are not three candidate submissions.** EACE accepts Word only:
+
+| file | what it is |
+|---|---|
+| `Kumar_CC-ResDiff.docx` | **the submission** |
+| `Kumar_CC-ResDiff.pdf` | that .docx rendered -- what the reviewers will see |
+| `cc_resdiff_eace.pdf` | the LaTeX build -- a reading copy, `article` class, not Springer's styles |
+
+Two size commands in the `\author` block (`\normalsize`) and on the address
+lines (`\small`) exist only for the LaTeX build: `article` sets authors at 12 pt,
+where Springer's style is 10 pt, and the names plus both ORCIDs overrun the
+column at 12 pt. `tex2docx.py` strips them, so the Word output is unaffected.
+
 ### Two decisions worth knowing about
 
 **Caption and equation numbers are literal text, not SEQ fields.** The Springer
@@ -166,11 +194,7 @@ Still to check once you have Word in front of you:
 
 ## MUST DO BEFORE SUBMITTING -- I could not do these here
 
-1. **Verify every bibliography entry.** They were drafted from memory. Titles and
-   authors are believed correct; venues, years and page numbers are NOT checked.
-   Verify most carefully: SR3 (TPAMI volume/year), Perception Prioritized
-   Training (author list), Min-SNR (author list).
-2. **Resolve the spacing contradiction with the organisers.** The call says
+1. **Resolve the spacing contradiction with the organisers.** The call says
    "double line spacing"; the Springer LNEE template it also mandates is
    single-spaced with a fixed 12.2 x 19.3 cm text area, and its macros set
    spacing themselves. These cannot both hold. Ask which governs the 10-page
@@ -178,7 +202,7 @@ Still to check once you have Word in front of you:
    is needed: take it from the ablation table, then the gradient discussion.
    Until they answer, build the Word file with the template's own spacing; that
    is the version the proceedings are typeset from.
-3. **Relabel the seeds.** Table 1 lists "seed A/B/C"; B was an independently
+2. **Relabel the seeds.** Table 1 lists "seed A/B/C"; B was an independently
    executed Colab run whose seed value should be recorded accurately.
 
 ## If a further cut is needed, in order of what to drop

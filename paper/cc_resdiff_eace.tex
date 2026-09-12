@@ -64,7 +64,10 @@ Residual-Space Diffusion Super-Resolution}}
 % Job titles are not part of a Springer author block, so "Assistant Professor"
 % is deliberately not printed. To name a department, put it before the
 % institution: "Department of ..., Pranveer Singh Institute of Technology, ...".
-\author{Sudhir Kumar\orcid{0009-0007-0878-0231} and
+% \normalsize because article's \maketitle sets authors at \large (12pt) and the
+% names plus both ORCIDs then overrun the 12.2 cm column; Springer's own author
+% style is 10pt. tex2docx.py strips the size command, so Word is unaffected.
+\author{\normalsize Sudhir Kumar\orcid{0009-0007-0878-0231} and
 Sanjoy Chattopadhyay\orcid{0009-0008-0937-6676}\\[4pt]
 \small Pranveer Singh Institute of Technology, Kanpur 209305, Uttar Pradesh, India\\[2pt]
 \small \texttt{snghsudhirkumar06@gmail.com} \quad

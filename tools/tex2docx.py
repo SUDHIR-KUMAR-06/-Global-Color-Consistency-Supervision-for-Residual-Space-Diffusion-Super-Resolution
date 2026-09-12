@@ -251,7 +251,11 @@ class Inline:
             elif ch in ESCAPES:
                 self._emit(ESCAPES[ch], st)
             elif ch == '\\':
+                # A line break inside a heading or title is a word gap here.
+                # Swallow the newline that follows it, or you get two spaces.
                 self._emit(' ', st)
+                while self.i < len(s) and s[self.i] in ' \n':
+                    self.i += 1
             else:
                 self.unknown.add('\\' + ch)
             return
@@ -956,7 +960,9 @@ def parse_author_block(raw):
     ...") when authors differ, or a single unnumbered line when they share one
     institution -- Springer drops the superscripts in that case.
     """
-    lines = [re.sub(r'\\small\s*', '', l).strip()
+    # Size commands here are for the LaTeX build's benefit only -- the Word
+    # styles set their own sizes -- so drop them before reading the content.
+    lines = [re.sub(r'\\(?:small|normalsize|large|footnotesize)\s*', '', l).strip()
              for l in re.split(r'\\\\(?:\[[^\]]*\])?', raw) if l.strip()]
     names, affils, emails = [], [], []
     for k, ln in enumerate(lines):

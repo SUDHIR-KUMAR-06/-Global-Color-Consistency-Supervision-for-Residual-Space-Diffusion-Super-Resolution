@@ -36,3 +36,11 @@ Thumbs.db
 # Office lock files
 .~lock.*#
 ~$*
+
+# LaTeX build artefacts (the .pdf is kept deliberately)
+*.aux
+*.out
+*.toc
+*.fls
+*.fdb_latexmk
+*.synctex.gz
